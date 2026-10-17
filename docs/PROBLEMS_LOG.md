@@ -59,7 +59,6 @@
 - Lesson learned: Min-max normalization on isolated runs creates a relative spread regardless of whether genuine outliers are present; relative scaling must be contextualized with absolute baselines when evaluating clean data.
 - Related doc updated: yes, `docs/PROGRESS.md` and `docs/AUDIT_RULES.md`
 
-
 ### P-005 | KeyError in build_feature_matrix when optional department column was absent
 - Date: 2026-10-17
 - Phase: 2
@@ -92,7 +91,6 @@
 - Alternatives considered: Performing nearest-neighbor searches during evaluation, rejected because deterministic linking in ground truth is more reliable and robust.
 - Lesson learned: Ground truth datasets for relational anomalies (duplicates, cycles) must store the relational foreign keys alongside anomaly labels.
 - Related doc updated: yes, `docs/PROGRESS.md`
-
 
 ### P-002 | Slow generation due to iterative row updates in anomaly injection
 - Date: 2026-10-17
