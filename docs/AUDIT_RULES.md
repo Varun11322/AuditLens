@@ -19,6 +19,12 @@ If something is unclear, ask. Do not invent thresholds or formulas.
 Rules that need a missing optional column are skipped. The run summary must list which rules were skipped and why.
 Rows with invalid amount, date, or duplicate transaction_id are rejected and counted in the validation summary.
 
+### Fallback Behavior
+- **Missing `created_by` or `approved_by`**: Skip R1 and R3, and list the skipped rules in the run summary.
+- **Date-only `posting_date` (no time)**: Skip the hour check in R6 (weekend check still runs), and use `hour_of_day = 12` as the ML feature.
+- **Vendor with fewer than 5 transactions, or MAD = 0**: Fall back to global median and MAD for `vendor_amount_robust_z`.
+- **Missing `department`**: Skip the `dept_amount_percentile` feature.
+
 ## 2. Default Settings (all overridable per run)
 | Setting | Default |
 |---|---|

@@ -12,9 +12,9 @@ Frontend: Streamlit + Plotly
 Backend: FastAPI + Uvicorn, Pydantic v2
 Database: PostgreSQL 16, SQLAlchemy 2.x ORM, Alembic migrations
 Analytics: pandas, NumPy, SciPy, scikit-learn
-Authentication: JWT (PyJWT or python-jose) + bcrypt (passlib)
+Authentication: JWT (PyJWT or python-jose) + bcrypt (direct library, not passlib)
 Storage: local `uploads/` directory (not public) for original files
-Hosting: Docker + docker-compose locally; Render or Railway for the demo
+Hosting: Docker + docker-compose locally; live hosting is optional, decided later
 Reports: openpyxl
 Other: pytest, ruff, python-dotenv or pydantic-settings
 

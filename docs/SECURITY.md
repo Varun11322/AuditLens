@@ -3,7 +3,7 @@ Financial data is sensitive. Even though this project uses synthetic data, build
 
 ## 1. Authentication
 Method: email + password -> JWT access token (short expiry, e.g. 60 minutes).
-Passwords: hashed with bcrypt (passlib). Never store or log plain passwords.
+Passwords: hashed with bcrypt (using the bcrypt library directly, not passlib). Never store or log plain passwords.
 No public self-registration in production mode. Seed an initial manager account via a CLI/seed script using environment variables. Managers can create auditor accounts.
 
 ## 2. Authorization
