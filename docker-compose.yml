@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: auditlens-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: auditlens
+      POSTGRES_PASSWORD: auditlens_password
+      POSTGRES_DB: auditlens
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auditlens -d auditlens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
