@@ -275,6 +275,11 @@ def _inject_anomalies(
     )
     ledger_df.loc[dup_indices, "posting_date"] = dup_dates
 
+    # Track donor transaction_ids for duplicate payments
+    related_txns: dict[int, str] = {}
+    for dup_idx, donor_txn in zip(dup_indices, donor_sub["transaction_id"].values, strict=False):
+        related_txns[int(dup_idx)] = str(donor_txn)
+
     # 2. Round amount (multiples of 1000 or 5000 >= 10000)
     round_indices = type_slices["round"]
     round_vals = np.array(
@@ -371,7 +376,14 @@ def _inject_anomalies(
     for idx in sorted(assigned_types.keys()):
         txn_id = ledger_df.at[idx, "transaction_id"]
         type_str = "|".join(assigned_types[idx])
-        ground_truth_records.append({"transaction_id": txn_id, "anomaly_types": type_str})
+        related_id = related_txns.get(idx, "")
+        ground_truth_records.append(
+            {
+                "transaction_id": txn_id,
+                "anomaly_types": type_str,
+                "related_transaction_id": related_id,
+            }
+        )
 
     df_ground_truth = pd.DataFrame(ground_truth_records)
     return ledger_df[CANONICAL_COLUMNS], df_ground_truth

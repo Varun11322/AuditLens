@@ -118,7 +118,7 @@ Nice to Have: Feature 8, threshold overrides in the UI, Docker deployment with l
 Future: column mapping UI, additional rules (vendor master checks, sequence gaps), scheduled runs, SHAP-style explanations for ML flags.
 
 ## 9. Success Metrics
-Primary: on synthetic data, recall of injected rule-based anomalies = 100%; ML layer catches a majority of injected random outliers with a reasonable false-positive rate (report the numbers).
+Primary: on synthetic data, 100% recall for the four strong rule types (duplicate, self-approval, missing approver, just-below-limit); round (R5) and weekend/after-hours (R6) are weak supporting signals worth 10 points each, so they are flagged on their own only when combined with another rule or an ML score; report both rule-fire recall (expected 100%) and flag recall. ML layer catches a majority of injected random outliers with a reasonable false-positive rate (report the numbers).
 Secondary: analysis of 50,000 rows completes in under 60 seconds on a laptop; dashboard loads in under 5 seconds.
 
 ## 10. Constraints

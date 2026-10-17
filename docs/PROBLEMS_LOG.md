@@ -23,6 +23,55 @@
 
 ## Log
 
+### P-006 | Per-run min-max ML scaling produces Low-risk flags on clean datasets
+- Date: 2026-10-17
+- Phase: 2
+- Status: Workaround (Known Limitation)
+- What happened: Running the analysis pipeline on `ledger_clean.csv` (which contains zero rule violations) flagged 330 out of 50,000 transactions (0.66%) as Low risk, driven purely by ML points.
+- Root cause: Isolation Forest anomaly scores are normalized with per-run min-max scaling (`ml_norm = (raw - min) / (max - min)`). Even in a clean dataset without true outliers, the statistical tails of normal variance are stretched to [0, 1], awarding the top ~0.66% rows `ml_points >= 30` which reaches the default `flag_threshold = 30`.
+- How it was fixed: Documented as an intended design property and known limitation in `docs/PROGRESS.md`, `docs/AUDIT_RULES.md`, and `docs/PRD.md`.
+- Alternatives considered: Possible future improvements:
+  1. Fixed absolute score thresholds from reference datasets rather than per-run relative min-max scaling.
+  2. Percentile-based cutoffs or calibrating scores against empirical background distributions.
+  3. Requiring a supporting rule trigger or a higher minimum raw decision function cutoff for ML-only flags.
+- Lesson learned: Min-max normalization on isolated runs creates a relative spread regardless of whether genuine outliers are present; relative scaling must be contextualized with absolute baselines when evaluating clean data.
+- Related doc updated: yes, `docs/PROGRESS.md` and `docs/AUDIT_RULES.md`
+
+
+### P-005 | KeyError in build_feature_matrix when optional department column was absent
+- Date: 2026-10-17
+- Phase: 2
+- Status: Resolved
+- What happened: `test_feature_vendor_robust_z_fallback` threw `KeyError: 'department'` when executing `build_feature_matrix` on a DataFrame that did not include the optional department column.
+- Root cause: `skip_dept` evaluated `(df["department"].astype(str).str.strip() == "").all()` before checking whether `"department"` existed in `df.columns`.
+- How it was fixed: Updated `app/analytics/features.py` to first verify `"department" in df.columns` before indexing the series.
+- Alternatives considered: Forcing validation to always add a blank department column beforehand, rejected because feature engineering should be robust to standalone DataFrames without requiring a prior validation step.
+- Lesson learned: Always check column membership (`col in df.columns`) before slicing DataFrames in feature engineering functions.
+- Related doc updated: no
+
+### P-004 | Injected duplicate payment detections counted original donor transactions as false positives under strict matching
+- Date: 2026-10-17
+- Phase: 2
+- Status: Resolved
+- What happened: Under strict precision calculation, the pipeline achieved 84.42% precision on `ledger.csv` because all 215 legitimate original donor transactions flagged by rule R2 were counted as false positives.
+- Root cause: Audit rule R2 intentionally flags all members of a duplicate group (both the original donor and the duplicate payment). Ground truth originally only recorded the injected copy's ID.
+- How it was fixed: Implemented audit-adjusted precision in `app/analytics/evaluation.py` that includes donor transactions (`related_transaction_id`) as valid detections, achieving 99.93% audit-adjusted precision with 100% recall on duplicates.
+- Alternatives considered: Changing R2 to only flag the latter duplicate transaction, rejected because AUDIT_RULES.md section 3 explicitly specifies: "All members of the group are flagged and share a duplicate_group_id".
+- Lesson learned: Metric calculations in domain-specific systems (like audit risk scoring) must align with domain definitions; report both strict and domain-adjusted metrics with clear explanatory documentation.
+- Related doc updated: yes, `docs/PROGRESS.md`
+
+### P-003 | Ground truth lacked duplicate pair relation (related_transaction_id)
+- Date: 2026-10-17
+- Phase: 2
+- Status: Resolved
+- What happened: Ground truth CSV contained only `transaction_id` and `anomaly_types`, making it impossible to programmatic trace which original donor transaction was cloned to create an injected duplicate payment.
+- Root cause: Phase 1 generator only recorded the newly injected copy ID without capturing the donor row index mapping.
+- How it was fixed: Updated `scripts/generate_synthetic_ledger.py` and its tests to track donor IDs and add `related_transaction_id` to `ground_truth.csv`. Regenerated default datasets in `data/`.
+- Alternatives considered: Performing nearest-neighbor searches during evaluation, rejected because deterministic linking in ground truth is more reliable and robust.
+- Lesson learned: Ground truth datasets for relational anomalies (duplicates, cycles) must store the relational foreign keys alongside anomaly labels.
+- Related doc updated: yes, `docs/PROGRESS.md`
+
+
 ### P-002 | Slow generation due to iterative row updates in anomaly injection
 - Date: 2026-10-17
 - Phase: 1

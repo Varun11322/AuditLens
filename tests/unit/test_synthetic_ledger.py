@@ -21,7 +21,11 @@ def test_synthetic_ledger_schema() -> None:
     # Check canonical columns and order
     assert list(df_ledger.columns) == CANONICAL_COLUMNS
     assert list(df_clean.columns) == CANONICAL_COLUMNS
-    assert list(df_ground_truth.columns) == ["transaction_id", "anomaly_types"]
+    assert list(df_ground_truth.columns) == [
+        "transaction_id",
+        "anomaly_types",
+        "related_transaction_id",
+    ]
 
     # Check row counts
     assert len(df_ledger) == 200
@@ -129,5 +133,9 @@ def test_save_datasets_io(tmp_path: Path) -> None:
     assert len(loaded_ledger) == 100
     assert list(loaded_ledger.columns) == CANONICAL_COLUMNS
 
-    loaded_gt = pd.read_csv(gt_path)
-    assert list(loaded_gt.columns) == ["transaction_id", "anomaly_types"]
+    loaded_gt = pd.read_csv(gt_path, keep_default_na=False)
+    assert list(loaded_gt.columns) == ["transaction_id", "anomaly_types", "related_transaction_id"]
+    dup_rows = loaded_gt[loaded_gt["anomaly_types"].str.contains("duplicate")]
+    assert (dup_rows["related_transaction_id"] != "").all()
+    non_dup = loaded_gt[~loaded_gt["anomaly_types"].str.contains("duplicate")]
+    assert (non_dup["related_transaction_id"] == "").all()

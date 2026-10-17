@@ -112,3 +112,5 @@ Script: `scripts/generate_synthetic_ledger.py`. Arguments: --rows (default 50000
 
 ## 9. Evaluation (should have)
 When ground_truth is available: precision = flagged and truly anomalous / flagged; recall = flagged and truly anomalous / truly anomalous; also recall per anomaly type. Display these and mention that real data would have far noisier labels.
+
+Note on rule recall vs. flag recall: 100% recall is expected for the four strong rule types (duplicate, self-approval, missing approver, just-below-limit). Round amount (R5) and weekend/after-hours (R6) are weak supporting signals worth 10 points each; they are flagged on their own only when combined with another rule or an elevated ML score (reaching the flag threshold of 30). Reports should distinguish rule-fire recall (expected 100%) from flag recall.

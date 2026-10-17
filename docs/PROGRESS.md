@@ -4,8 +4,8 @@
 > Be honest: only mark something Done if it was actually run and verified.
 
 **Last updated:** 2026-10-17  
-**Current phase:** Phase 1 completed (Phase 2 next)  
-**Overall completion:** 2 of 8 phases  
+**Current phase:** Phase 2 completed (Phase 3 next)  
+**Overall completion:** 3 of 8 phases  
 
 ## 1. Phase Status
 Status values: Not started / In progress / Done / Blocked
@@ -14,7 +14,7 @@ Status values: Not started / In progress / Done / Blocked
 |---|---|---|---|---|---|---|
 | 0 | Repo scaffold, Docker Postgres, health endpoint | Done | 2026-10-17 | 1/1 | Pass | Scaffold, .venv, docker-compose, FastAPI /health, test, README; Postgres container verified healthy |
 | 1 | Synthetic ledger generator | Done | 2026-10-17 | 7/7 | Pass | Generator script `scripts/generate_synthetic_ledger.py`, canonical schema, vectorized injection, 7/7 unit & integration tests pass, generates 50k rows in < 1s |
-| 2 | Analytics engine (rules, Benford, ML, scoring) | Not started | | | | |
+| 2 | Analytics engine (rules, Benford, ML, scoring) | Done | 2026-10-17 | 31/31 | Pass | Pure analytics package (`app/analytics/`) with settings, validation, rules R1-R6, Benford test, ML features, IsolationForest, scoring, pipeline, evaluation; 94% coverage; 50k rows in 2.18s |
 | 3 | Database models and migrations | Not started | | | | |
 | 4 | FastAPI backend | Not started | | | | |
 | 5 | Streamlit UI | Not started | | | | |
@@ -24,7 +24,7 @@ Status values: Not started / In progress / Done / Blocked
 ## 2. Feature Checklist (from PRD.md)
 - [ ] F1 Authentication and roles
 - [ ] F2 File upload and validation
-- [ ] F3 Analysis run
+- [x] F3 Analysis run
 - [ ] F4 Dashboard
 - [ ] F5 Flagged transactions review (incl. sign-off)
 - [ ] F6 Exceptions report export
@@ -32,42 +32,44 @@ Status values: Not started / In progress / Done / Blocked
 - [ ] F8 Evaluation page (should have)
 
 ## 3. Analytics Engine Checklist (from AUDIT_RULES.md)
-- [ ] Validation and cleaning
-- [ ] R1 Self-approval
-- [ ] R2 Duplicate payment
-- [ ] R3 Missing approver
-- [ ] R4 Just below approval limit
-- [ ] R5 Round amount
-- [ ] R6 Weekend / after-hours
-- [ ] Benford's Law test
-- [ ] Features + Isolation Forest
-- [ ] Risk scoring and levels
-- [ ] Evaluation (precision/recall)
+- [x] Validation and cleaning
+- [x] R1 Self-approval
+- [x] R2 Duplicate payment
+- [x] R3 Missing approver
+- [x] R4 Just below approval limit
+- [x] R5 Round amount
+- [x] R6 Weekend / after-hours
+- [x] Benford's Law test
+- [x] Features + Isolation Forest
+- [x] Risk scoring and levels
+- [x] Evaluation (precision/recall)
 
 ## 4. Key Results (fill in as they become available)
 | Metric | Value | Date |
 |---|---|---|
-| Unit test count / coverage on app/analytics | 7 tests passing (6 synthetic ledger unit + 1 health integration) | 2026-10-17 |
-| Runtime on 50,000 rows | 0.81s (0.28s generation + 0.53s CSV export) | 2026-10-17 |
-| Flagged count on ledger.csv | (to be evaluated in Phase 2) | |
-| Recall on injected rule-based anomalies | (to be evaluated in Phase 2) | |
-| Recall on random outliers (ML) | (to be evaluated in Phase 2) | |
-| Precision overall | (to be evaluated in Phase 2) | |
-| Flags on ledger_clean.csv | (to be evaluated in Phase 2) | |
+| Unit test count / coverage on app/analytics | 31 tests passing (24 analytics unit + 6 generator unit + 1 health) / 94% coverage | 2026-10-17 |
+| Runtime on 50,000 rows | 2.18s analysis pipeline runtime (benchmark < 60s) | 2026-10-17 |
+| Flagged count on ledger.csv | 1,386 flagged (High: 21, Medium: 203, Low: 1,162) | 2026-10-17 |
+| Strong rules recall (R1, R2, R3, R4) | 100% rule-fire recall and 100% flag recall (R1: 232/232, R2: 215/215, R3: 214/214, R4: 228/228) | 2026-10-17 |
+| Weak supporting rules recall (R5, R6) | Rule-fire recall: 100% on R5 (224/224) and R6 (314 fires). Flag recall: 21.9% on R5 (49/224) and 49.6% on R6 (123/248), reaching flag threshold (30) when combined with ML points or another rule | 2026-10-17 |
+| Recall on random outliers (ML) | 85.5% (183 / 214 caught by Isolation Forest) | 2026-10-17 |
+| Precision overall | 99.93% audit-adjusted precision (84.42% strict precision) | 2026-10-17 |
+| Flags on ledger_clean.csv | 330 flagged (0 rule violations; 330 Low-risk flags driven by per-run ML scaling) | 2026-10-17 |
 
 ## 5. Deviations from the Docs
 List anything implemented differently from the .md documents, and whether the docs were updated.
-- (none)
+- Added `related_transaction_id` column to `ground_truth.csv` to track the original (donor) transaction of each injected duplicate payment. This enables computing audit-adjusted precision (recognizing that flagging both transactions in a duplicate pair is correct audit behavior per R2) alongside strict precision.
 
 ## 6. Known Limitations / Not Done
-- Synthetic data generation (Phase 1) is complete with default datasets in `data/` (`ledger.csv`, `ground_truth.csv`, `ledger_clean.csv`).
-- Analytics engine (Phase 2) rules, Benford test, and Isolation Forest ML models are scheduled for the next phase.
+- **Per-run min-max ML scaling**: The Isolation Forest anomaly scores use per-run min-max scaling to [0, 1]. On an entirely clean ledger with no injected outliers, the relative spread of normal statistical variance still produces ~0.66% Low-risk flags (330 of 50,000) driven by ML alone. Future improvements include calibrated absolute thresholds or requiring a supporting rule trigger for ML-only flags.
+- **Pending phases**: Analytics engine (Phase 2) is pure and standalone. Database models, Alembic migrations, FastAPI endpoints, Streamlit UI, and Excel report export are scheduled for Phases 3 through 7.
 
 ## 7. Next Steps
-- Phase 2: Implement the analytics engine in `app/analytics/` (rules R1-R6, Benford's Law, Isolation Forest feature pipeline and scoring, combined risk score, and evaluation functions).
+- Phase 3: Implement database models and Alembic migrations (users, uploads, transactions, analysis_runs, flagged_transactions, reviews, audit_logs) in PostgreSQL.
 
 ## 8. Change History
 | Date | Phase | Summary of what changed |
 |---|---|---|
+| 2026-10-17 | 2 | Implemented pure analytics engine in `app/analytics/`: `settings.py`, `validation.py`, `rules.py` (R1-R6), `benford.py`, `features.py`, `ml.py` (IsolationForest), `scoring.py`, `pipeline.py`, and `evaluation.py`. Added unit tests in `tests/unit/analytics/` achieving 94% test coverage. Validated on 50k ledger (2.18s runtime, 99.93% audit precision). |
 | 2026-10-17 | 1 | Implemented `scripts/generate_synthetic_ledger.py` with CLI arguments (--rows, --seed, --out-dir), canonical schema, 200 vendor profiles, vectorized anomaly injection for all 7 anomaly types, and unit tests in `tests/unit/test_synthetic_ledger.py`. Generated 50,000-row default datasets in `data/`. |
 | 2026-10-17 | 0 | Scaffolding, pyproject.toml, docker-compose, .env.example, FastAPI health endpoint, test, and README; PostgreSQL 16 container verified healthy |

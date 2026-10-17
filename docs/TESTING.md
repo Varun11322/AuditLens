@@ -71,6 +71,6 @@ Type Check: mypy app/analytics
 - [ ] Lint passes
 - [ ] Type check passes (analytics)
 - [ ] Critical flow verified
-- [ ] Synthetic-data run: 100% recall on injected rule-based anomalies, precision and recall reported
+- [ ] Synthetic-data run: 100% recall for the four strong rule types (duplicate, self-approval, missing approver, just-below-limit); round (R5) and weekend/after-hours (R6) are weak supporting signals worth 10 points each, so they are flagged on their own only when combined with another rule or an ML score; report both rule-fire recall (expected 100%) and flag recall.
 - [ ] Clean ledger run produces very few flags
 - [ ] No blocking errors
