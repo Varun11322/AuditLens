@@ -23,6 +23,28 @@
 
 ## Log
 
+### P-008 | result.rowcount evaluated to -1 in bulk inserts with psycopg
+- Date: 2026-10-18
+- Phase: 3
+- Status: Resolved
+- What happened: Repository tests for `bulk_create_transactions` and `bulk_create_flagged_transactions` failed with `assert -1 == 5`.
+- Root cause: Python's fallback idiom `result.rowcount or len(records)` evaluated to `-1` because `-1` is truthy in Python. With multi-value `insert()`, psycopg does not always populate a positive cursor rowcount prior to consumption.
+- How it was fixed: Updated `app/repositories/transaction_repo.py` and `app/repositories/flagged_repo.py` to check `result.rowcount if result.rowcount is not None and result.rowcount > 0 else len(records)`.
+- Alternatives considered: Using `insert().returning(...)`, rejected because returning all primary keys over the wire creates unnecessary network and memory overhead during high-volume batch inserts.
+- Lesson learned: Never rely on `or` fallback with `rowcount` since negative integers are truthy; explicitly test `rowcount > 0`.
+- Related doc updated: no
+
+### P-007 | Native host PostgreSQL service collided with Docker container on port 5432
+- Date: 2026-10-18
+- Phase: 3
+- Status: Resolved
+- What happened: Psycopg failed to connect to `localhost:5432` with `FATAL: password authentication failed for user "auditlens"`, even though the Docker container `auditlens-db` was healthy.
+- Root cause: A local Windows service `postgresql-x64-18` (PostgreSQL 18 server, PID 8212) was already running and listening on `0.0.0.0:5432`. On Windows, connections to `localhost:5432` prioritized the native winsock listener over Docker Desktop's port forwarder.
+- How it was fixed: Parameterized the host port in `docker-compose.yml` to `"${POSTGRES_PORT:-5432}:5432"`, set `POSTGRES_PORT=5433` and `DATABASE_URL=postgresql+psycopg://auditlens:auditlens_password@localhost:5433/auditlens` in `.env`, and restarted the container with `docker compose up -d`.
+- Alternatives considered: Stopping the Windows service via `Stop-Service postgresql-x64-18`, which failed due to lack of administrative permissions in non-elevated user shell. Parameterizing the host port is cleaner and maintains environment portability.
+- Lesson learned: Port collisions with pre-existing local developer services can silently hijack connections; use environment-variable driven port mappings to prevent hard collisions.
+- Related doc updated: yes, `docs/PROGRESS.md`
+
 ### P-006 | Per-run min-max ML scaling produces Low-risk flags on clean datasets
 - Date: 2026-10-17
 - Phase: 2
