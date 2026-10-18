@@ -1,0 +1,1 @@
+"""Frontend views and pages."""

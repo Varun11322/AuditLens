@@ -106,7 +106,7 @@ To stop the database:
 docker compose down
 ```
 
-### 5. Running the API
+### 5. Running the Backend API
 
 Start the FastAPI development server:
 
@@ -119,7 +119,18 @@ Verify that the service is running:
 - Health check: [http://localhost:8000/health](http://localhost:8000/health)
 - Interactive API documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### 6. Running Tests & Linting
+### 6. Running the Streamlit Frontend
+
+In a separate terminal (with the virtual environment activated), start the Streamlit web interface:
+
+```bash
+streamlit run frontend/app.py --server.port 8501
+```
+
+Access the AuditLens workbench in your browser:
+- Web UI: [http://localhost:8501](http://localhost:8501)
+
+### 7. Running Tests & Linting
 
 Run automated tests:
 
@@ -139,3 +150,4 @@ Run code formatting and lint checks:
 ruff check .
 ruff format --check .
 ```
+
