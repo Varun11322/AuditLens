@@ -32,6 +32,8 @@ class AnalysisSettingsOverride(BaseModel):
 class StartAnalysisRequest(BaseModel):
     """Request payload to initiate an analysis run."""
 
+    model_config = ConfigDict(extra="forbid")
+
     settings: AnalysisSettingsOverride | None = None
 
 
@@ -71,13 +73,17 @@ class BenfordAvailableResponse(BaseModel):
     """Response containing calculated Benford analysis metrics."""
 
     available: bool = True
+    observed: dict[int, float]
+    expected: dict[int, float]
     observed_counts: dict[int, int]
     observed_frequencies: dict[int, float]
     expected_frequencies: dict[int, float]
     chi_square: float
     p_value: float
     mad: float
+    conformity: str
     conformity_label: str
     sample_size: int
+    per_vendor: list[dict[str, Any]] = Field(default_factory=list)
     vendors: dict[str, Any] = Field(default_factory=dict)
     non_conformant_vendors: list[str] = Field(default_factory=list)

@@ -59,7 +59,9 @@ def list_uploads_route(
 
 
 @router.get("/template")
-def get_template_route() -> Response:
+def get_template_route(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Response:
     """Download the canonical CSV ledger template file."""
     content = get_template_csv()
     return Response(

@@ -129,9 +129,17 @@ def test_upload_unsupported_file_type(client: TestClient, auditor_token: str):
     assert response.json()["error"]["code"] == "unsupported_media_type"
 
 
-def test_template_download(client: TestClient):
-    """Test template download returns canonical header in CSV."""
-    response = client.get("/uploads/template")
+def test_template_download(client: TestClient, auditor_token: str):
+    """Test template download requires auth (401 without token, 200 with token)."""
+    # Unauthenticated request returns 401
+    unauth_res = client.get("/uploads/template")
+    assert unauth_res.status_code == 401
+
+    # Authenticated request returns 200 with CSV attachment
+    response = client.get(
+        "/uploads/template",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
     assert response.status_code == 200
     assert "text/csv" in response.headers["content-type"]
     lines = response.text.strip().splitlines()

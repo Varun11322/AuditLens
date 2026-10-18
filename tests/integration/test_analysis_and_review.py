@@ -120,7 +120,14 @@ def test_full_analysis_review_and_signoff_flow(
     assert upload_res.status_code == 201
     upload_id = upload_res.json()["id"]
 
-    # 2. Reject unknown/invalid settings in analysis request with 422
+    # 2. Reject unknown root keys and unknown settings in analysis request with 422
+    unknown_root_res = client.post(
+        f"/uploads/{upload_id}/analyze",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+        json={"unknown_root_field": "disallowed"},
+    )
+    assert unknown_root_res.status_code == 422
+
     invalid_settings_res = client.post(
         f"/uploads/{upload_id}/analyze",
         headers={"Authorization": f"Bearer {auditor_token}"},
@@ -156,13 +163,19 @@ def test_full_analysis_review_and_signoff_flow(
     assert run_data["status"] == "completed"
     assert run_data["summary"] is not None
 
-    # 5. List runs for upload
+    # 5. List runs for upload (Auditor 1 sees it, Auditor 2 gets 404)
     runs_list_res = client.get(
         f"/uploads/{upload_id}/runs",
         headers={"Authorization": f"Bearer {auditor_token}"},
     )
     assert runs_list_res.status_code == 200
     assert len(runs_list_res.json()) >= 1
+
+    runs_unauth_res = client.get(
+        f"/uploads/{upload_id}/runs",
+        headers={"Authorization": f"Bearer {second_auditor_token}"},
+    )
+    assert runs_unauth_res.status_code == 404
 
     # 6. Check Benford endpoint (returns insufficient data because rows < 1000)
     benford_res = client.get(
@@ -172,9 +185,9 @@ def test_full_analysis_review_and_signoff_flow(
     assert benford_res.status_code == 200
     benford_data = benford_res.json()
     assert benford_data["available"] is False
-    assert "insufficient" in benford_data["reason"].lower()
+    assert benford_data["reason"] == "insufficient data"
 
-    # 7. Get flagged transactions list
+    # 7. Get flagged transactions list & test all query filters and sorting
     flagged_res = client.get(
         f"/runs/{run_id}/flagged",
         headers={"Authorization": f"Bearer {auditor_token}"},
@@ -184,9 +197,22 @@ def test_full_analysis_review_and_signoff_flow(
     total_flagged = flagged_data["total"]
     assert total_flagged >= 4  # R1, R2A, R2B, R3, R4 flagged
 
-    # Verify filtering by rule R1
+    # Test repeatable & comma-separated risk_level
+    rl_repeat_res = client.get(
+        f"/runs/{run_id}/flagged?risk_level=high&risk_level=medium",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert rl_repeat_res.status_code == 200
+    rl_comma_res = client.get(
+        f"/runs/{run_id}/flagged?risk_level=high,medium",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert rl_comma_res.status_code == 200
+    assert rl_repeat_res.json()["total"] == rl_comma_res.json()["total"]
+
+    # Test rule filter (R1)
     r1_filter_res = client.get(
-        f"/runs/{run_id}/flagged?rule=R1",
+        f"/runs/{run_id}/flagged?rule=r1",
         headers={"Authorization": f"Bearer {auditor_token}"},
     )
     assert r1_filter_res.status_code == 200
@@ -194,9 +220,64 @@ def test_full_analysis_review_and_signoff_flow(
     assert len(r1_items) == 1
     assert "R1" in r1_items[0]["triggered_rules"]
 
-    # Verify sorting by risk_score desc
-    scores = [item["risk_score"] for item in flagged_data["items"]]
-    assert scores == sorted(scores, reverse=True)
+    # Test vendor_id filter
+    vendor_filter_res = client.get(
+        f"/runs/{run_id}/flagged?vendor_id=VEND-20",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert vendor_filter_res.status_code == 200
+    assert vendor_filter_res.json()["total"] == 1
+    assert vendor_filter_res.json()["items"][0]["vendor_id"] == "VEND-20"
+
+    # Test department filter
+    dept_filter_res = client.get(
+        f"/runs/{run_id}/flagged?department=Finance",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert dept_filter_res.status_code == 200
+    for it in dept_filter_res.json()["items"]:
+        assert it["department"] == "Finance"
+
+    # Test review_status filter
+    status_filter_res = client.get(
+        f"/runs/{run_id}/flagged?review_status=open",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert status_filter_res.status_code == 200
+    assert status_filter_res.json()["total"] == total_flagged
+
+    # Test date_from and date_to filters (YYYY-MM-DD)
+    date_filter_res = client.get(
+        f"/runs/{run_id}/flagged?date_from=2026-01-14&date_to=2026-01-18",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert date_filter_res.status_code == 200
+    assert date_filter_res.json()["total"] >= 1
+
+    # Test amount_min and amount_max filters
+    amount_filter_res = client.get(
+        f"/runs/{run_id}/flagged?amount_min=50000&amount_max=90000",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert amount_filter_res.status_code == 200
+    for it in amount_filter_res.json()["items"]:
+        assert 50000 <= it["amount"] <= 90000
+
+    # Test sort_by=amount sort_dir=asc
+    sort_amt_res = client.get(
+        f"/runs/{run_id}/flagged?sort_by=amount&sort_dir=asc",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert sort_amt_res.status_code == 200
+    amt_items = [it["amount"] for it in sort_amt_res.json()["items"]]
+    assert amt_items == sorted(amt_items)
+
+    # Test sort_by=posting_date sort_dir=desc
+    sort_date_res = client.get(
+        f"/runs/{run_id}/flagged?sort_by=posting_date&sort_dir=desc",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+    )
+    assert sort_date_res.status_code == 200
 
     # 8. Detail view of a flagged item
     first_item = flagged_data["items"][0]
@@ -234,13 +315,43 @@ def test_full_analysis_review_and_signoff_flow(
     assert bad_review_res.status_code == 422
     assert bad_review_res.json()["error"]["code"] == "comment_required"
 
-    # 11. Auditor 2 cannot review Auditor 1's flagged item (404)
-    unauth_review = client.patch(
-        f"/flagged/{first_item['id']}/review",
-        headers={"Authorization": f"Bearer {second_auditor_token}"},
-        json={"status": "reviewed", "comment": "Unauthorized review attempt"},
+    # 11. Auditor 2 cannot see or review Auditor 1's items (returns 404 for all)
+    assert (
+        client.get(
+            f"/runs/{run_id}",
+            headers={"Authorization": f"Bearer {second_auditor_token}"},
+        ).status_code
+        == 404
     )
-    assert unauth_review.status_code == 404
+    assert (
+        client.get(
+            f"/runs/{run_id}/benford",
+            headers={"Authorization": f"Bearer {second_auditor_token}"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            f"/runs/{run_id}/flagged",
+            headers={"Authorization": f"Bearer {second_auditor_token}"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            f"/flagged/{first_item['id']}",
+            headers={"Authorization": f"Bearer {second_auditor_token}"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.patch(
+            f"/flagged/{first_item['id']}/review",
+            headers={"Authorization": f"Bearer {second_auditor_token}"},
+            json={"status": "reviewed", "comment": "Unauthorized review attempt"},
+        ).status_code
+        == 404
+    )
 
     # 12. Manager cannot sign off while open review items remain (409)
     premature_signoff = client.post(
@@ -250,8 +361,40 @@ def test_full_analysis_review_and_signoff_flow(
     assert premature_signoff.status_code == 409
     assert premature_signoff.json()["error"]["code"] == "open_reviews_remaining"
 
-    # 13. Auditor reviews all flagged items
-    for item in flagged_data["items"]:
+    # 13. Test each review status ('needs_follow_up', 'false_positive', 'open', 'reviewed')
+    items = flagged_data["items"]
+    # Item 0: needs_follow_up
+    res_nfu = client.patch(
+        f"/flagged/{items[0]['id']}/review",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+        json={"status": "needs_follow_up", "comment": "Requires vendor contract inquiry"},
+    )
+    assert res_nfu.status_code == 200
+    assert res_nfu.json()["review_status"] == "needs_follow_up"
+
+    # Item 1: false_positive
+    res_fp = client.patch(
+        f"/flagged/{items[1]['id']}/review",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+        json={
+            "status": "false_positive",
+            "comment": "Legitimate identical monthly recurring charges",
+        },
+    )
+    assert res_fp.status_code == 200
+    assert res_fp.json()["review_status"] == "false_positive"
+
+    # Item 0: reopen to 'open' then mark 'reviewed'
+    res_open = client.patch(
+        f"/flagged/{items[0]['id']}/review",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+        json={"status": "open", "comment": "Re-opening for second pass"},
+    )
+    assert res_open.status_code == 200
+    assert res_open.json()["review_status"] == "open"
+
+    # Review all remaining flagged items so run can be signed off
+    for item in items:
         rev_res = client.patch(
             f"/flagged/{item['id']}/review",
             headers={"Authorization": f"Bearer {auditor_token}"},

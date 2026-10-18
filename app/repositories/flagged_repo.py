@@ -156,33 +156,63 @@ def get_flagged_transactions_filtered(
         .where(FlaggedTransaction.run_id == run_id)
     )
 
+    # Normalize risk levels
     if risk_levels:
-        stmt = stmt.where(FlaggedTransaction.risk_level.in_(risk_levels))
-        count_stmt = count_stmt.where(FlaggedTransaction.risk_level.in_(risk_levels))
+        normalized_levels = []
+        for rl in risk_levels:
+            for part in str(rl).split(","):
+                cleaned = part.strip().lower()
+                if cleaned:
+                    normalized_levels.append(cleaned)
+        if normalized_levels:
+            stmt = stmt.where(FlaggedTransaction.risk_level.in_(normalized_levels))
+            count_stmt = count_stmt.where(FlaggedTransaction.risk_level.in_(normalized_levels))
 
+    # Normalize rule codes (e.g. R1..R6)
     if rules:
-        stmt = stmt.where(FlaggedTransaction.triggered_rules.overlap(rules))
-        count_stmt = count_stmt.where(FlaggedTransaction.triggered_rules.overlap(rules))
+        normalized_rules = []
+        for rc in rules:
+            for part in str(rc).split(","):
+                cleaned = part.strip().upper()
+                if cleaned:
+                    normalized_rules.append(cleaned)
+        if normalized_rules:
+            stmt = stmt.where(FlaggedTransaction.triggered_rules.overlap(normalized_rules))
+            count_stmt = count_stmt.where(
+                FlaggedTransaction.triggered_rules.overlap(normalized_rules)
+            )
 
     if vendor_id:
-        stmt = stmt.where(Transaction.vendor_id == vendor_id)
-        count_stmt = count_stmt.where(Transaction.vendor_id == vendor_id)
+        v_clean = vendor_id.strip()
+        stmt = stmt.where(Transaction.vendor_id == v_clean)
+        count_stmt = count_stmt.where(Transaction.vendor_id == v_clean)
 
     if department:
-        stmt = stmt.where(Transaction.department == department)
-        count_stmt = count_stmt.where(Transaction.department == department)
+        d_clean = department.strip()
+        stmt = stmt.where(Transaction.department == d_clean)
+        count_stmt = count_stmt.where(Transaction.department == d_clean)
 
     if review_status:
-        stmt = stmt.where(FlaggedTransaction.review_status == review_status)
-        count_stmt = count_stmt.where(FlaggedTransaction.review_status == review_status)
+        rs_clean = review_status.strip().lower()
+        stmt = stmt.where(FlaggedTransaction.review_status == rs_clean)
+        count_stmt = count_stmt.where(FlaggedTransaction.review_status == rs_clean)
 
     if date_from:
         stmt = stmt.where(Transaction.posting_date >= date_from)
         count_stmt = count_stmt.where(Transaction.posting_date >= date_from)
 
     if date_to:
-        stmt = stmt.where(Transaction.posting_date <= date_to)
-        count_stmt = count_stmt.where(Transaction.posting_date <= date_to)
+        # If date_to has 00:00:00 time (e.g. parsed from YYYY-MM-DD), extend to end of day
+        eff_date_to = date_to
+        if (
+            eff_date_to.hour == 0
+            and eff_date_to.minute == 0
+            and eff_date_to.second == 0
+            and eff_date_to.microsecond == 0
+        ):
+            eff_date_to = eff_date_to.replace(hour=23, minute=59, second=59, microsecond=999999)
+        stmt = stmt.where(Transaction.posting_date <= eff_date_to)
+        count_stmt = count_stmt.where(Transaction.posting_date <= eff_date_to)
 
     if amount_min is not None:
         stmt = stmt.where(Transaction.amount >= amount_min)

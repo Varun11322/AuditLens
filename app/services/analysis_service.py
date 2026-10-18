@@ -271,23 +271,28 @@ def get_benford_results(db: Session, run_id: int, current_user: User) -> dict[st
     ):
         return {
             "available": False,
-            "reason": (
-                "Insufficient transaction volume for Benford analysis "
-                "(minimum 1,000 rows required)."
-            ),
+            "reason": "insufficient data",
         }
 
     overall = benford["overall"]
+    per_vendor_list = [
+        {"vendor_id": str(v_id), **v_metrics}
+        for v_id, v_metrics in benford.get("vendors", {}).items()
+    ]
     return {
         "available": True,
+        "observed": overall["observed_frequencies"],
+        "expected": overall["expected_frequencies"],
         "observed_counts": overall["observed_counts"],
         "observed_frequencies": overall["observed_frequencies"],
         "expected_frequencies": overall["expected_frequencies"],
         "chi_square": overall["chi_square"],
         "p_value": overall["p_value"],
         "mad": overall["mad"],
+        "conformity": overall["conformity_label"],
         "conformity_label": overall["conformity_label"],
         "sample_size": overall["sample_size"],
+        "per_vendor": per_vendor_list,
         "vendors": benford.get("vendors", {}),
         "non_conformant_vendors": benford.get("non_conformant_vendors", []),
     }

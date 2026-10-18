@@ -65,6 +65,10 @@ Status values: Not started / In progress / Done / Blocked
 List anything implemented differently from the .md documents, and whether the docs were updated.
 - Added `related_transaction_id` column to `ground_truth.csv` to track the original (donor) transaction of each injected duplicate payment. This enables computing audit-adjusted precision (recognizing that flagging both transactions in a duplicate pair is correct audit behavior per R2) alongside strict precision.
 - Configured host port in `docker-compose.yml` to `"${POSTGRES_PORT:-5432}:5432"` (using port 5433 in local `.env`) to prevent collisions when a native host PostgreSQL service (e.g., PostgreSQL 18 on Windows) is already bound to port 5432.
+- In Phase 4 backend implementation:
+  - `GET /runs/{id}/report` is deferred to Phase 6 (Exceptions Report Export) per project brief phase plan.
+  - `POST /runs/{id}/evaluate` is deferred to Phase 7 (Evaluation Page) per project brief phase plan.
+  - All other endpoints, parameters, error formats, role/ownership guards (returning 404 for unowned items), and settings validation (rejecting unknown keys with 422) strictly conform to `docs/API.md` and `docs/SECURITY.md`.
 
 ## 6. Known Limitations / Not Done
 - **Per-run min-max ML scaling**: The Isolation Forest anomaly scores use per-run min-max scaling to [0, 1]. On an entirely clean ledger with no injected outliers, the relative spread of normal statistical variance still produces ~0.66% Low-risk flags (330 of 50,000) driven by ML alone. Future improvements include calibrated absolute thresholds or requiring a supporting rule trigger for ML-only flags.
