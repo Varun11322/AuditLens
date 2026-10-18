@@ -23,6 +23,18 @@
 
 ## Log
 
+### P-009 | DetachedInstanceError after db_session.expunge_all() in cascade delete test
+- Date: 2026-10-18
+- Phase: 3
+- Status: Resolved
+- What happened: In the cascade-delete test, `db_session.expunge_all()` was called before reading `txn.id`, which detached the instance and raised `DetachedInstanceError` when the expired attribute was loaded.
+- Root cause: `expunge_all()` detached the objects, and reading an expired attribute on a detached object cannot trigger a reload.
+- How it was fixed: Captured the integer primary keys before the delete and the expunge, then used those keys for the assertions.
+- Alternatives considered: none
+- Lesson learned: Read and store the values you need (such as primary keys) before detaching or expiring objects.
+- Related doc updated: no
+
+
 ### P-008 | result.rowcount evaluated to -1 in bulk inserts with psycopg
 - Date: 2026-10-18
 - Phase: 3
