@@ -20,39 +20,45 @@ st.set_page_config(
 token = st.session_state.get("token")
 
 if not token:
-    login_page = st.Page(render_login_page, title="Login", icon="🔐")
+    login_page = st.Page(render_login_page, title="Login", url_path="login", icon="🔐")
     nav = st.navigation([login_page], position="hidden")
     nav.run()
 else:
     upload_page = st.Page(
         render_upload_page,
         title="Upload",
+        url_path="upload",
         icon="📤",
         default=True,
     )
     dashboard_page = st.Page(
         render_dashboard_page,
         title="Dashboard",
+        url_path="dashboard",
         icon="📊",
     )
     review_page = st.Page(
         render_review_page,
         title="Review",
+        url_path="review",
         icon="🔍",
     )
     benford_page = st.Page(
         render_benford_page,
         title="Benford",
+        url_path="benford",
         icon="📈",
     )
     reports_page = st.Page(
         render_reports_page,
         title="Reports",
+        url_path="reports",
         icon="📄",
     )
     evaluation_page = st.Page(
         render_evaluation_page,
         title="Evaluation",
+        url_path="evaluation",
         icon="🎯",
     )
 

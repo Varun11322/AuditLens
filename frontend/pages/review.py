@@ -16,6 +16,7 @@ from frontend.components.auth_guard import (
 )
 from frontend.components.badges import (
     format_currency,
+    format_datetime,
     get_risk_badge_html,
     get_status_badge_html,
 )
@@ -78,8 +79,7 @@ def render_review_page() -> None:
         return
 
     run_options = {
-        f"Run #{r['id']} ({r.get('finished_at', '')[:19].replace('T', ' ')})": r["id"]
-        for r in completed_runs
+        f"Run #{r['id']} ({format_datetime(r.get('finished_at'))})": r["id"] for r in completed_runs
     }
     curr_run_id = st.session_state.get("current_run_id")
     def_run_idx = 0
@@ -104,7 +104,7 @@ def render_review_page() -> None:
         return
 
     is_signed_off = run_detail.get("signed_off_by") is not None
-    signed_off_at = run_detail.get("signed_off_at", "")[:19].replace("T", " ")
+    signed_off_at = format_datetime(run_detail.get("signed_off_at"))
 
     # Signed-off Banner or Status Header
     if is_signed_off:
@@ -235,12 +235,12 @@ def render_review_page() -> None:
             {
                 "Flagged ID": item["id"],
                 "Transaction ID": item["transaction_id"],
-                "Posting Date": str(item["posting_date"])[:19].replace("T", " "),
-                "Amount": format_currency(item["amount"]),
-                "Vendor": item["vendor_id"],
+                "Posting Date": format_datetime(item.get("posting_date")),
+                "Amount": format_currency(item.get("amount")),
+                "Vendor": item.get("vendor_id", "Unknown"),
                 "Department": item.get("department") or "—",
-                "Risk Score": item["risk_score"],
-                "Risk Level": item["risk_level"].upper(),
+                "Risk Score": item.get("risk_score", 0),
+                "Risk Level": str(item.get("risk_level", "low")).upper(),
                 "Rules": ", ".join(item.get("triggered_rules", [])),
                 "Status": STATUS_LABELS.get(item["review_status"], item["review_status"]),
             }
@@ -303,7 +303,7 @@ def _render_detail_panel(token: str, detail: dict[str, Any], is_signed_off: bool
         d_top1, d_top2, d_top3 = st.columns([2, 1, 1])
         with d_top1:
             st.markdown(f"### Transaction `{detail.get('transaction_id')}`")
-            post_date = str(detail.get("posting_date"))[:19].replace("T", " ")
+            post_date = format_datetime(detail.get("posting_date"))
             st.markdown(
                 f"**Vendor:** `{detail.get('vendor_id')}` | **Posting Date:** `{post_date}`"
             )
@@ -361,10 +361,10 @@ def _render_detail_panel(token: str, detail: dict[str, Any], is_signed_off: bool
             dup_rows = [
                 {
                     "Transaction ID": m["transaction_id"],
-                    "Posting Date": str(m["posting_date"])[:19].replace("T", " "),
-                    "Amount": format_currency(m["amount"]),
-                    "Vendor": m["vendor_id"],
-                    "Risk Score": m["risk_score"],
+                    "Posting Date": format_datetime(m.get("posting_date")),
+                    "Amount": format_currency(m.get("amount")),
+                    "Vendor": m.get("vendor_id"),
+                    "Risk Score": m.get("risk_score"),
                     "Status": STATUS_LABELS.get(m["review_status"], m["review_status"]),
                 }
                 for m in dup_members
@@ -377,10 +377,11 @@ def _render_detail_panel(token: str, detail: dict[str, Any], is_signed_off: bool
         reviews = detail.get("reviews", [])
         if reviews:
             for rev in reviews:
+                rev_date = format_datetime(rev.get("created_at"))
                 st.markdown(
                     f"- **{rev.get('reviewer_name') or 'Auditor'}** marked as "
                     f"`{STATUS_LABELS.get(rev['status'], rev['status'])}` on "
-                    f"`{rev.get('created_at', '')[:19].replace('T', ' ')}`: "
+                    f"`{rev_date}`: "
                     f"*{rev.get('comment') or 'No comment'}*"
                 )
         else:

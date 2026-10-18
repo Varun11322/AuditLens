@@ -23,6 +23,28 @@
 
 ## Log
 
+### P-015 | Dashboard "Total Transactions" displays 0 due to validation summary key mismatch
+- Date: 2026-10-18
+- Phase: 5
+- Status: Resolved
+- What happened: On the Dashboard, "Total Transactions" showed 0 instead of 50,000 for the `ledger.csv` run, causing "% of total" under Flagged Exceptions to display `0.0%` instead of ~2.8%.
+- Root cause: `frontend/pages/dashboard.py` attempted to retrieve `val_sum.get("accepted_rows", 0)`. In `app/analytics/validation.py`, the validation summary dictionary returns keys `"valid_rows"` and `"total_rows"`, while the database `Upload` record stores `"row_count_accepted"`. Neither matched `"accepted_rows"`, resolving to 0.
+- How it was fixed: Updated `frontend/pages/dashboard.py` to retrieve `val_sum.get("valid_rows") or selected_up.get("row_count_accepted") or val_sum.get("total_rows", 0)` without altering the analytics engine. Applied compact Indian Rupee formatting (`format_compact_currency`), switched timeline to weekly bars, and added regression tests.
+- Alternatives considered: Modifying the dictionary keys returned by `validate_and_clean_data`, rejected to avoid breaking other consumers of the pure analytics engine.
+- Lesson learned: Always verify key names against the actual schema emitted by pure analytics modules and database models; provide robust fallbacks across summary and upload entities.
+- Related doc updated: yes, docs/PROGRESS.md
+
+### P-014 | Review workbench crash on null signed_off_at datetime slicing
+- Date: 2026-10-18
+- Phase: 5
+- Status: Resolved
+- What happened: Review page crashed with `TypeError: 'NoneType' object is not subscriptable` at `frontend/pages/review.py` line 107 when opening an unsigned run.
+- Root cause: In unsigned runs, `signed_off_at` is `null` in the API JSON response (`None` in Python). Calling `run_detail.get("signed_off_at", "")` returned `None` because the key was present, so the default empty string fallback was bypassed. Slicing `None[:19]` raised a TypeError.
+- How it was fixed: Introduced `format_datetime()` in `frontend/components/badges.py` to safely handle `None` and empty values before slicing or formatting. Replaced all raw `.get(...)[:19]` occurrences across `frontend/` (`review.py`, `dashboard.py`, `upload.py`, `benford.py`). Added unit tests covering both signed and unsigned runs.
+- Alternatives considered: Inline `(run_detail.get("signed_off_at") or "")[:19]`, rejected in favor of a centralized formatter function returning `"N/A"` or `"—"` consistently.
+- Lesson learned: In Python, `dict.get(key, default)` only evaluates the default if the key is missing entirely, not if its value is `None`. All nullable fields must be explicitly sanitized.
+- Related doc updated: yes, docs/PROGRESS.md
+
 ### P-013 | Triggered rule codes column name mismatch between analytics engine and DB mapping
 - Date: 2026-10-18
 - Phase: 4

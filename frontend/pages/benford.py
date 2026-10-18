@@ -5,6 +5,7 @@ import streamlit as st
 
 from frontend.api_client import ApiClientError, api_client
 from frontend.components.auth_guard import get_token, handle_api_call, render_sidebar
+from frontend.components.badges import format_datetime
 from frontend.components.charts import create_benford_chart
 from frontend.constants import COLOR_PRIMARY, COLOR_RISK_HIGH, COLOR_SUCCESS, COLOR_WARNING
 
@@ -65,8 +66,7 @@ def render_benford_page() -> None:
         return
 
     run_options = {
-        f"Run #{r['id']} ({r.get('finished_at', '')[:19].replace('T', ' ')})": r["id"]
-        for r in completed_runs
+        f"Run #{r['id']} ({format_datetime(r.get('finished_at'))})": r["id"] for r in completed_runs
     }
     curr_run_id = st.session_state.get("current_run_id")
     def_run_idx = 0

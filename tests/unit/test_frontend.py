@@ -15,7 +15,13 @@ from frontend.api_client import (
     RateLimitError,
     ValidationError,
 )
-from frontend.components.badges import format_currency, get_risk_badge_html, get_status_badge_html
+from frontend.components.badges import (
+    format_compact_currency,
+    format_currency,
+    format_datetime,
+    get_risk_badge_html,
+    get_status_badge_html,
+)
 from frontend.components.charts import (
     create_benford_chart,
     create_risk_distribution_chart,
@@ -200,6 +206,76 @@ def test_badge_and_formatting_helpers():
     assert "Needs Follow-up" in badge_status
 
 
+def test_format_compact_currency():
+    assert format_compact_currency(128147000) == "₹12.8 Cr"
+    assert format_compact_currency(4520000) == "₹45.2 L"
+    assert format_compact_currency(75000) == "₹75.0 K"
+    assert format_compact_currency(450.5) == "₹450.50"
+    assert format_compact_currency(0) == "₹0"
+    assert format_compact_currency(None) == "₹0"
+    assert format_compact_currency(-25000000) == "-₹2.5 Cr"
+
+
+def test_format_datetime_safe():
+    # Bug 1 regression test: None value should not raise TypeError
+    assert format_datetime(None) == "—"
+    assert format_datetime("") == "—"
+    assert format_datetime("2026-10-18T15:30:00.123456Z") == "2026-10-18 15:30:00"
+
+
+def test_review_run_signing_logic():
+    # Bug 1 regression test: unsigned run with signed_off_at = None
+    unsigned_run = {
+        "id": 3,
+        "upload_id": 5,
+        "status": "completed",
+        "signed_off_by": None,
+        "signed_off_at": None,
+        "finished_at": "2026-10-18T14:00:00Z",
+    }
+    is_signed_off = unsigned_run.get("signed_off_by") is not None
+    assert is_signed_off is False
+    signed_off_at = format_datetime(unsigned_run.get("signed_off_at"))
+    assert signed_off_at == "—"
+
+    # Signed run
+    signed_run = {
+        "id": 3,
+        "upload_id": 5,
+        "status": "completed",
+        "signed_off_by": 1,
+        "signed_off_at": "2026-10-18T16:45:00Z",
+        "finished_at": "2026-10-18T14:00:00Z",
+    }
+    is_signed_off = signed_run.get("signed_off_by") is not None
+    assert is_signed_off is True
+    signed_off_at = format_datetime(signed_run.get("signed_off_at"))
+    assert signed_off_at == "2026-10-18 16:45:00"
+
+
+def test_dashboard_total_transactions_calculation():
+    # Bug 2 regression test: total transactions must not be 0
+    run_detail = {
+        "summary": {
+            "validation": {
+                "total_rows": 50000,
+                "valid_rows": 50000,
+                "rejected_rows": 0,
+            },
+            "scoring": {"total_flagged": 1386},
+        }
+    }
+    upload = {"id": 5, "row_count_accepted": 50000}
+    val_sum = run_detail["summary"]["validation"]
+
+    total_txns = val_sum.get("valid_rows") or upload.get("row_count_accepted") or 0
+    assert total_txns == 50000
+
+    total_flagged = run_detail["summary"]["scoring"]["total_flagged"]
+    pct_flagged = (total_flagged / total_txns * 100) if total_txns > 0 else 0.0
+    assert round(pct_flagged, 1) == 2.8
+
+
 def test_plotly_chart_builders():
     # Risk chart
     fig1 = create_risk_distribution_chart({"high": 10, "medium": 20, "low": 30})
@@ -210,13 +286,21 @@ def test_plotly_chart_builders():
     fig2 = create_rule_counts_chart({"R1": 5, "R2": 3})
     assert len(fig2.data) == 1
 
-    # Timeline chart
-    fig3 = create_timeline_chart([{"date": "2024-01-01", "count": 10}])
+    # Weekly timeline chart (replaces daily line chart)
+    fig3 = create_timeline_chart(
+        [
+            {"date": "2024-01-01", "count": 10},
+            {"date": "2024-01-03", "count": 5},
+            {"date": "2024-01-15", "count": 8},
+        ]
+    )
     assert len(fig3.data) == 1
+    assert fig3.data[0].type == "bar"
 
-    # Top vendors chart
-    fig4 = create_top_vendors_chart([{"vendor_id": "V1", "amount": 1000.0}])
+    # Top vendors chart with compact INR formatting
+    fig4 = create_top_vendors_chart([{"vendor_id": "V1", "amount": 128000000.0}])
     assert len(fig4.data) == 1
+    assert fig4.data[0].text[0] == "₹12.8 Cr"
 
     # Benford chart
     fig5 = create_benford_chart({1: 0.301}, {1: 0.301})

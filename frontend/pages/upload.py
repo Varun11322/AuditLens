@@ -7,6 +7,7 @@ import streamlit as st
 
 from frontend.api_client import ApiClientError, api_client
 from frontend.components.auth_guard import get_token, handle_api_call, render_sidebar
+from frontend.components.badges import format_datetime
 from frontend.constants import DEFAULT_SETTINGS
 
 
@@ -314,7 +315,7 @@ def _render_previous_uploads_table(token: str) -> None:
             col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
             with col1:
                 st.markdown(f"**{item.get('original_filename')}** (ID: {item.get('id')})")
-                st.caption(f"Uploaded: {item.get('created_at', '')[:19].replace('T', ' ')}")
+                st.caption(f"Uploaded: {format_datetime(item.get('created_at'))}")
             with col2:
                 accepted = item.get("row_count_accepted", 0)
                 total = item.get("row_count_total", 0)

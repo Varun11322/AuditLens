@@ -5,6 +5,7 @@ from typing import Any
 import pandas as pd
 import plotly.graph_objects as go
 
+from frontend.components.badges import format_compact_currency
 from frontend.constants import (
     COLOR_BORDER,
     COLOR_MUTED_TEXT,
@@ -102,43 +103,59 @@ def create_rule_counts_chart(rule_counts: dict[str, int]) -> go.Figure:
 
 
 def create_timeline_chart(timeline_records: list[dict[str, Any]]) -> go.Figure:
-    """Create a line / bar chart of flagged items over posting dates."""
+    """Create a weekly bar chart of flagged items over posting dates."""
     if not timeline_records:
         fig = go.Figure()
-        return _apply_theme(fig, "Flagged Items Over Time", "Posting Date", "Flagged Count")
+        return _apply_theme(
+            fig, "Flagged Items Over Time (Weekly)", "Week Starting", "Flagged Count"
+        )
 
     df = pd.DataFrame(timeline_records)
-    # Sort by date
-    if "date" in df.columns and "count" in df.columns:
-        df = df.sort_values("date")
+    if "date" in df.columns:
+        df["dt"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["dt"])
+        if len(df) == 0:
+            fig = go.Figure()
+            return _apply_theme(
+                fig, "Flagged Items Over Time (Weekly)", "Week Starting", "Flagged Count"
+            )
+
+        df["week_start"] = (
+            df["dt"].dt.to_period("W").apply(lambda r: r.start_time.strftime("%Y-%m-%d"))
+        )
+        if "count" not in df.columns:
+            df["count"] = 1
+        weekly = df.groupby("week_start", as_index=False)["count"].sum().sort_values("week_start")
+
         fig = go.Figure(
             data=[
-                go.Scatter(
-                    x=df["date"],
-                    y=df["count"],
-                    mode="lines+markers",
-                    line=dict(color=COLOR_PRIMARY, width=2.5),
-                    marker=dict(size=6, color=COLOR_SECONDARY),
-                    hovertemplate="<b>%{x}</b><br>Flagged: %{y}<extra></extra>",
+                go.Bar(
+                    x=weekly["week_start"],
+                    y=weekly["count"],
+                    marker_color=COLOR_PRIMARY,
+                    text=weekly["count"],
+                    textposition="auto",
+                    hovertemplate="<b>Week of %{x}</b><br>Flagged: %{y:,}<extra></extra>",
                 )
             ]
         )
     else:
         fig = go.Figure()
 
-    return _apply_theme(fig, "Flagged Items Over Time", "Posting Date", "Flagged Count")
+    return _apply_theme(fig, "Flagged Items Over Time (Weekly)", "Week Starting", "Flagged Count")
 
 
 def create_top_vendors_chart(vendors: list[dict[str, Any]]) -> go.Figure:
     """Create a horizontal bar chart of top vendors by flagged amount."""
     if not vendors:
         fig = go.Figure()
-        return _apply_theme(fig, "Top Vendors by Flagged Amount", "Amount (₹)", "Vendor")
+        return _apply_theme(fig, "Top Vendors by Flagged Amount", "Flagged Amount", "Vendor")
 
     # Limit to top 10 and sort ascending for horizontal bar chart
     top = vendors[:10][::-1]
     vendor_ids = [v.get("vendor_id", "Unknown") for v in top]
-    amounts = [v.get("amount", 0.0) for v in top]
+    amounts = [float(v.get("amount", 0.0)) for v in top]
+    compact_labels = [format_compact_currency(a) for a in amounts]
 
     fig = go.Figure(
         data=[
@@ -147,11 +164,15 @@ def create_top_vendors_chart(vendors: list[dict[str, Any]]) -> go.Figure:
                 y=vendor_ids,
                 orientation="h",
                 marker_color=COLOR_SECONDARY,
-                hovertemplate="<b>Vendor %{y}</b><br>Flagged Amount: ₹%{x:,.2f}<extra></extra>",
+                text=compact_labels,
+                textposition="auto",
+                hovertemplate="<b>Vendor %{y}</b><br>Flagged: %{text} (₹%{x:,.2f})<extra></extra>",
             )
         ]
     )
-    return _apply_theme(fig, "Top Vendors by Flagged Amount", "Amount (₹)", "Vendor")
+    fig = _apply_theme(fig, "Top Vendors by Flagged Amount", "Flagged Amount", "Vendor")
+    fig.update_xaxes(tickprefix="₹", tickformat=".2s")
+    return fig
 
 
 def create_benford_chart(

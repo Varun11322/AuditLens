@@ -4,7 +4,11 @@ import streamlit as st
 
 from frontend.api_client import ApiClientError, api_client
 from frontend.components.auth_guard import get_token, handle_api_call, render_sidebar
-from frontend.components.badges import format_currency
+from frontend.components.badges import (
+    format_compact_currency,
+    format_currency,
+    format_datetime,
+)
 from frontend.components.charts import (
     create_risk_distribution_chart,
     create_rule_counts_chart,
@@ -77,8 +81,7 @@ def render_dashboard_page() -> None:
 
     # Select run
     run_options = {
-        f"Run #{r['id']} ({r.get('finished_at', '')[:19].replace('T', ' ')})": r["id"]
-        for r in completed_runs
+        f"Run #{r['id']} ({format_datetime(r.get('finished_at'))})": r["id"] for r in completed_runs
     }
     default_run_idx = 0
     curr_run_id = st.session_state.get("current_run_id")
@@ -117,7 +120,12 @@ def render_dashboard_page() -> None:
     rules_sum = summary.get("rules", {})
     val_sum = summary.get("validation", {})
 
-    total_txns = val_sum.get("accepted_rows", 0)
+    selected_up = next((u for u in uploads if u["id"] == selected_up_id), {})
+    total_txns = (
+        val_sum.get("valid_rows")
+        or selected_up.get("row_count_accepted")
+        or val_sum.get("total_rows", 0)
+    )
     total_flagged = flagged_resp.get("total", scoring.get("total_flagged", 0))
 
     by_level = scoring.get("by_level", {})
@@ -144,11 +152,15 @@ def render_dashboard_page() -> None:
         "Flagged Exceptions",
         f"{total_flagged:,}",
         delta=f"{pct_flagged:.1f}% of total",
-        delta_color="inverse",
+        delta_color="off",
     )
     m3.metric("High Risk", f"{high_count:,}")
     m4.metric("Medium Risk", f"{med_count:,}")
-    m5.metric("Total Flagged Amount", format_currency(total_flagged_amount))
+    m5.metric(
+        "Total Flagged Amount",
+        format_compact_currency(total_flagged_amount),
+        help=format_currency(total_flagged_amount),
+    )
 
     # 5. Benford Summary Card
     with st.container(border=True):
@@ -200,7 +212,8 @@ def render_dashboard_page() -> None:
         # Timeline data aggregation from flagged items
         timeline_dict: dict[str, int] = {}
         for item in flagged_items:
-            date_str = str(item.get("posting_date", ""))[:10]
+            raw_date = item.get("posting_date")
+            date_str = str(raw_date)[:10] if raw_date else ""
             if date_str:
                 timeline_dict[date_str] = timeline_dict.get(date_str, 0) + 1
         timeline_records = [{"date": d, "count": c} for d, c in sorted(timeline_dict.items())]
