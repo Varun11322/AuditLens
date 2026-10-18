@@ -148,12 +148,9 @@ def render_dashboard_page() -> None:
     # 4. Metrics Row
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Total Transactions", f"{total_txns:,}")
-    m2.metric(
-        "Flagged Exceptions",
-        f"{total_flagged:,}",
-        delta=f"{pct_flagged:.1f}% of total",
-        delta_color="off",
-    )
+    with m2:
+        st.metric("Flagged Exceptions", f"{total_flagged:,}")
+        st.caption(f"{pct_flagged:.1f}% of total")
     m3.metric("High Risk", f"{high_count:,}")
     m4.metric("Medium Risk", f"{med_count:,}")
     m5.metric(

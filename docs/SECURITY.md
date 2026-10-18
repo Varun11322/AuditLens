@@ -48,12 +48,13 @@ Validation: reject unknown types; parse with pandas safely; never execute or eva
 Storage: parsed rows go to the database; the original file is stored in a non-public `uploads/` directory with a generated filename (never the user-supplied name).
 
 ## 9. Security Checklist
-- [ ] Authentication implemented (JWT + bcrypt)
-- [ ] Role and ownership checks on every endpoint
-- [ ] Server-side validation with Pydantic
-- [ ] Secrets only in env, .env ignored by git
-- [ ] Login rate limiting
-- [ ] File upload validated (type, size, content)
-- [ ] Export is protected against formula injection
-- [ ] Errors do not expose sensitive details
-- [ ] Dependencies reviewed (pip-audit or similar)
+- [x] Authentication implemented (JWT + bcrypt)
+- [x] Role and ownership checks on every endpoint
+- [x] Server-side validation with Pydantic
+- [x] Secrets only in env, .env ignored by git
+- [x] Login rate limiting
+- [x] File upload validated (type, size, content)
+- [x] Export is protected against formula injection
+- [x] Errors do not expose sensitive details
+- [x] Dependencies reviewed (pip-audit or similar)
+

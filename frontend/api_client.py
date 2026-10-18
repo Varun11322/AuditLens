@@ -287,6 +287,22 @@ class ApiClient:
                 _handle_response_error(resp)
             return resp.content
 
+    def evaluate_run(
+        self,
+        token: str,
+        run_id: int,
+        file_content: bytes,
+        filename: str = "ground_truth.csv",
+    ) -> dict[str, Any]:
+        """Submit ground truth CSV for benchmarking a completed analysis run."""
+        url = f"{self.base_url}/runs/{run_id}/evaluate"
+        files = {"file": (filename, file_content, "text/csv")}
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.post(url, files=files, headers=self._headers(token))
+            if resp.is_error:
+                _handle_response_error(resp)
+            return resp.json()
+
 
 # Shared singleton client instance
 api_client = ApiClient()

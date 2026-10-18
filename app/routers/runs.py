@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.schemas.flagged import FlaggedListResponse
 from app.schemas.run import AnalysisRunResponse
 from app.services.analysis_service import (
+    evaluate_analysis_run,
     get_benford_results,
     get_run_detail,
     sign_off_analysis_run,
@@ -126,4 +127,22 @@ def get_run_report_route(
         content=xlsx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/{run_id}/evaluate")
+async def evaluate_run_route(
+    run_id: int,
+    file: Annotated[UploadFile, File(description="Ground truth CSV file")],
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict[str, Any]:
+    """Compare the analysis run against a ground_truth CSV."""
+    file_bytes = await file.read()
+    return evaluate_analysis_run(
+        db=db,
+        run_id=run_id,
+        file_bytes=file_bytes,
+        filename=file.filename or "ground_truth.csv",
+        current_user=current_user,
     )

@@ -4,8 +4,8 @@
 > Be honest: only mark something Done if it was actually run and verified.
 
 **Last updated:** 2026-10-18  
-**Current phase:** Phase 6 completed (Phase 7 next)  
-**Overall completion:** 7 of 8 phases  
+**Current phase:** Phase 7 completed (All 8 phases complete!)  
+**Overall completion:** 8 of 8 phases  
 
 ## 1. Phase Status
 Status values: Not started / In progress / Done / Blocked
@@ -19,7 +19,7 @@ Status values: Not started / In progress / Done / Blocked
 | 4 | FastAPI backend | Done | 2026-10-18 | 63/63 | Pass | Full REST API per API.md: JWT + direct bcrypt, login rate limit, role/ownership guards, upload validation/cascade, background analysis pipeline, Benford & flagged filter/sort/paginate, review PATCH, manager sign-off; 94% coverage; verified live against 50k ledger |
 | 5 | Streamlit UI | Done | 2026-10-18 | 72/72 | Pass | Full multi-page UI in `frontend/` per UX_FLOWS.md & DESIGN_SYSTEM.md: `api_client.py`, theme config, Login, Upload & Run, Dashboard, Review workbench with server-side pagination & manager sign-off, Benford page, placeholders; fixed review page null sign-off crash and dashboard totals (initial Phase 5 verification missed them because UI was not run in browser) |
 | 6 | Excel report export | Done | 2026-10-18 | 79/79 | Pass | Multi-sheet Excel (.xlsx) workpaper export endpoint `GET /runs/{id}/report?format=xlsx` using openpyxl with sheets: Summary, Flagged Transactions, Rule Counts, Benford, Review Log; formula injection protection (`= + - @` escaped with `'`); sensible column widths, frozen headers, currency/date number formatting; Streamlit Reports page download button; verified on 50k ledger run (155KB, 1,387 rows) and isolated Streamlit AppTest without PYTHONPATH |
-| 7 | Evaluation page, Docker, README | Not started | | | | |
+| 7 | Evaluation page, Docker, README | Done | 2026-10-18 | 84/84 | Pass | Evaluation endpoint `POST /runs/{id}/evaluate` and Streamlit Evaluation workbench; multi-service Docker Compose (`docker-compose.yml`, `Dockerfile.api`, `Dockerfile.frontend`) verified live via browser subagent logging into Streamlit; comprehensive README.md; Excel Summary sheet formatting & settings labels updated; Benford/Dashboard small UI polish; 84 passing tests; 91% app coverage |
 
 
 ## 2. Feature Checklist (from PRD.md)
@@ -30,7 +30,7 @@ Status values: Not started / In progress / Done / Blocked
 - [x] F5 Flagged transactions review (incl. sign-off)
 - [x] F6 Exceptions report export
 - [x] F7 Synthetic data generator
-- [ ] F8 Evaluation page (should have)
+- [x] F8 Evaluation page (should have)
 
 ## 3. Analytics Engine Checklist (from AUDIT_RULES.md)
 - [x] Validation and cleaning
@@ -76,14 +76,20 @@ List anything implemented differently from the .md documents, and whether the do
 
 ## 6. Known Limitations / Not Done
 - **Per-run min-max ML scaling**: The Isolation Forest anomaly scores use per-run min-max scaling to [0, 1]. On an entirely clean ledger with no injected outliers, the relative spread of normal statistical variance still produces ~0.66% Low-risk flags (330 of 50,000) driven by ML alone. Future improvements include calibrated absolute thresholds or requiring a supporting rule trigger for ML-only flags.
-- **Pending phases**: Phase 7 (Evaluation endpoint/page, Dockerfiles & docker-compose orchestration, README finalization, and security audit) is scheduled next.
+- **Single-instance local architecture**: Designed for local workstation and containerized evaluation. Future cloud deployments will utilize Celery/Redis worker queues for distributed ingestion.
 
 ## 7. Next Steps
-- Phase 7: Implement evaluation endpoint `POST /runs/{run_id}/evaluate` and Streamlit Evaluation page; configure multi-service `docker-compose.yml` and Dockerfiles; finalize README with architecture diagram and instructions; audit against `docs/SECURITY.md` checklist.
+- Post-MVP Enhancements:
+  - Column mapping UI for arbitrary ERP exports (SAP, Oracle NetSuite, Tally, QuickBooks).
+  - Public benchmark testing on PaySim dataset.
+  - Additional audit rules (vendor master bank changes, sequential invoice gaps).
+  - Helm charts and cloud infrastructure orchestration.
 
 ## 8. Change History
 | Date | Phase | Summary of what changed |
 |---|---|---|
+| 2026-10-18 | 7 | Completed Phase 7 (Evaluation suite, Docker orchestration, README, security checklist, and report formatting polish): 1) Implemented `POST /runs/{run_id}/evaluate` endpoint in `app/routers/runs.py` and `app/services/analysis_service.py` using `app/analytics/evaluation.py` to compare runs against uploaded `ground_truth.csv`; built Streamlit Evaluation workbench in `frontend/pages/evaluation.py` with strict/audit-adjusted precision, recall breakdown across all anomaly types, and plain-English explanations of supporting signals (R5/R6). 2) Configured multi-container Docker deployment (`docker-compose.yml`, `Dockerfile.api`, `Dockerfile.frontend`, `Dockerfile`) running migrations and seeding the admin user on startup; preserved host Postgres port override (`${POSTGRES_PORT:-5432}:5432`, defaulting to 5433); configured Streamlit `--server.address 0.0.0.0` inside containers and documented localhost-only for local runs; verified live via browser subagent logging in and loading the Upload page. 3) Comprehensive README.md with architecture diagram, run instructions, data generator guide, test instructions, screenshot placeholders, and limitations. 4) Small UI fixes: compact chi-square p-value on Benford page and plain-text percentage without up arrow on Dashboard. 5) Verified `docs/SECURITY.md` checklist and documented placeholder admin password. 6) Verified continuous numbering in `docs/PROBLEMS_LOG.md` (P-001 through P-019). 7) Excel Summary sheet fixes: updated R4 label, displayed `round_min_amount` and `round_multiple`, and stored all counts and percentages as real numbers with Excel formatting. 84 total passing tests with 91% coverage across `app`. |
+| 2026-10-18 | 6 | Implemented multi-sheet Excel (.xlsx) exceptions report export per `docs/API.md` and `docs/PRD.md`: `app/services/report_service.py` with 5 sheets (`Summary`, `Flagged Transactions`, `Rule Counts`, `Benford`, `Review Log`), openpyxl formatting (AuditLens navy headers, sensible auto-fitted column widths, frozen header panes, number formats `#,##0.00` for currency, `0.0%` for percentages, and timestamps), and formula injection sanitization escaping cells starting with `= + - @` with `'` per `docs/SECURITY.md` Section 8. Added `GET /runs/{run_id}/report?format=xlsx` endpoint in `app/routers/runs.py` with role/ownership enforcement (404 for unowned items) and 409 conflict checks for non-completed runs. Updated `frontend/api_client.py` and `frontend/pages/reports.py` with dataset and run selectors, scorecard metrics, and prominent download button. Verified report generation on real 50,000-row `ledger.csv` run (155,619 bytes, 1,387 rows) and verified headless Streamlit rendering in a pristine process with no `PYTHONPATH` using `streamlit.testing.v1.AppTest` (79 total passing tests, 94% coverage). |
 | 2026-10-18 | 6 | Implemented multi-sheet Excel (.xlsx) exceptions report export per `docs/API.md` and `docs/PRD.md`: `app/services/report_service.py` with 5 sheets (`Summary`, `Flagged Transactions`, `Rule Counts`, `Benford`, `Review Log`), openpyxl formatting (AuditLens navy headers, sensible auto-fitted column widths, frozen header panes, number formats `#,##0.00` for currency, `0.0%` for percentages, and timestamps), and formula injection sanitization escaping cells starting with `= + - @` with `'` per `docs/SECURITY.md` Section 8. Added `GET /runs/{run_id}/report?format=xlsx` endpoint in `app/routers/runs.py` with role/ownership enforcement (404 for unowned items) and 409 conflict checks for non-completed runs. Updated `frontend/api_client.py` and `frontend/pages/reports.py` with dataset and run selectors, scorecard metrics, and prominent download button. Verified report generation on real 50,000-row `ledger.csv` run (155,619 bytes, 1,387 rows) and verified headless Streamlit rendering in a pristine process with no `PYTHONPATH` using `streamlit.testing.v1.AppTest` (79 total passing tests, 94% coverage). |
 | 2026-10-18 | 5 | Built complete Streamlit frontend in `frontend/` aligned with `docs/UX_FLOWS.md` (Flows 1-6 & 8) and `docs/DESIGN_SYSTEM.md`: theme tokens in `.streamlit/config.toml`, centralized `frontend/api_client.py` using `httpx` (no backend logic in Streamlit), Login page with credential clearance, Upload & Validate view with template download, background run launcher with threshold overrides and live polling, Overview Dashboard with Plotly charts and Benford summary, Review workbench with server-side pagination (50 items/page), filter/sorting controls, detailed transaction inspection modal (score breakdown, duplicate groups, audit trail), review disposition recording with mandatory justification for false positives, role-aware manager sign-off locking, Benford's Law analysis view, and coming soon placeholders for Reports and Evaluation. Note: initial Phase 5 verification missed two bugs because UI was not run in the browser: Bug 1 (TypeError on null signed_off_at datetime slicing) and Bug 2 (Dashboard Total Transactions displayed 0 due to validation summary key mismatch). Fixed both, applied compact Indian currency formatting (`₹12.8 Cr`), neutral delta metrics, weekly timeline bar charts, and clean page URL slugs (`/review`, `/dashboard`, etc.). Added regression tests (72 total passing tests, 94% coverage) and verified live rendering across all 6 pages. |
 | 2026-10-18 | 4 | Implemented complete FastAPI backend per `docs/API.md`: JWT auth + direct bcrypt, login rate limiting (10/min), role & ownership guards (`auditor`, `manager`), upload validation and streaming storage with cascade delete, background task analysis execution via `app/analytics/pipeline.py`, run status polling, Benford summary results, flagged transaction query with pagination/filtering/sorting, transaction detail with duplicate pair detection and review history, review status updates with audit trail, and manager sign-off validation. Added 19 integration tests (63 total passing, 94% coverage) and verified live E2E flow with seeded admin against 50,000-row `data/ledger.csv`. |

@@ -68,8 +68,9 @@ def evaluate_detections(
 
     # 4. Recall per anomaly type
     recall_by_type: dict[str, dict[str, Any]] = {}
+    anomaly_types_series = ground_truth_df["anomaly_types"].fillna("").astype(str)
     for atype in ALL_ANOMALY_TYPES:
-        matching_mask = ground_truth_df["anomaly_types"].str.contains(atype, regex=False)
+        matching_mask = anomaly_types_series.str.contains(atype, regex=False)
         target_ids = set(ground_truth_df.loc[matching_mask, "transaction_id"].astype(str))
         n_target = len(target_ids)
         caught_ids = target_ids.intersection(flagged_ids)

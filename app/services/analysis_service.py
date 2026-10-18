@@ -1,17 +1,22 @@
 """Analysis service orchestrating run scheduling, background pipeline execution, and sign-off."""
 
+import io
 import logging
 from datetime import UTC, datetime
 from typing import Any
 
 import pandas as pd
 from fastapi import BackgroundTasks
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.analytics.evaluation import evaluate_detections
 from app.analytics.pipeline import run_analysis
 from app.analytics.settings import Settings
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.db.models.analysis_run import AnalysisRun
+from app.db.models.flagged_transaction import FlaggedTransaction
+from app.db.models.transaction import Transaction
 from app.db.models.user import User
 from app.db.session import SessionLocal
 from app.repositories.audit_log_repo import create_audit_log
@@ -358,3 +363,77 @@ def sign_off_analysis_run(db: Session, run_id: int, current_user: User) -> Analy
     )
     logger.info("Analysis run %d signed off by manager %s", run_id, current_user.email)
     return signed_run or run
+
+
+def evaluate_analysis_run(
+    db: Session,
+    run_id: int,
+    file_bytes: bytes,
+    filename: str,
+    current_user: User,
+) -> dict[str, Any]:
+    """Evaluate detection accuracy of a completed analysis run against ground truth labels.
+
+    Args:
+        db: Active database session.
+        run_id: Analysis run ID to evaluate.
+        file_bytes: Raw bytes of uploaded ground truth CSV.
+        filename: Original filename of the uploaded ground truth file.
+        current_user: Authenticated user.
+
+    Returns:
+        dict[str, Any]: Precision, recall, per-anomaly-type breakdown, and counts.
+
+    Raises:
+        NotFoundError: If run is not found or not owned by user.
+        ConflictError: If run status is not 'completed'.
+        ValidationError: If file is not CSV, is empty, or lacks required columns.
+    """
+    run = get_run_detail(db, run_id, current_user)
+    if run.status != "completed":
+        raise ConflictError(
+            code="run_not_completed",
+            message=(
+                f"Analysis run {run_id} is '{run.status}'. Only completed runs can be evaluated."
+            ),
+        )
+
+    if not filename.lower().endswith(".csv"):
+        raise ValidationError(
+            code="invalid_ground_truth_file",
+            message="Ground truth file must be a CSV file (.csv).",
+        )
+
+    try:
+        content_str = file_bytes.decode("utf-8-sig")
+        gt_df = pd.read_csv(io.StringIO(content_str))
+    except Exception as exc:
+        raise ValidationError(
+            code="invalid_ground_truth_file",
+            message=f"Failed to parse ground truth CSV: {exc}",
+        ) from exc
+
+    if gt_df.empty:
+        raise ValidationError(
+            code="empty_ground_truth",
+            message="Ground truth CSV file is empty.",
+        )
+
+    required_cols = {"transaction_id", "anomaly_types"}
+    missing = required_cols - set(gt_df.columns)
+    if missing:
+        raise ValidationError(
+            code="missing_required_columns",
+            message=f"Ground truth file missing required columns: {sorted(missing)}",
+        )
+
+    # Fetch flagged transactions for this run
+    stmt = (
+        select(Transaction.transaction_id)
+        .join(FlaggedTransaction, FlaggedTransaction.transaction_pk == Transaction.id)
+        .where(FlaggedTransaction.run_id == run_id)
+    )
+    flagged_ids = [row[0] for row in db.execute(stmt).fetchall()]
+    flagged_df = pd.DataFrame({"transaction_id": flagged_ids})
+
+    return evaluate_detections(flagged_df, gt_df)

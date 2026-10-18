@@ -23,6 +23,17 @@
 
 ## Log
 
+### P-019 | AttributeError 'transaction_id' on FlaggedTransaction model in evaluate_analysis_run
+- Date: 2026-10-18
+- Phase: 7
+- Status: Resolved
+- What happened: Evaluating an analysis run against ground truth raised `AttributeError: type object 'FlaggedTransaction' has no attribute 'transaction_id'`.
+- Root cause: In `evaluate_analysis_run`, the SQLAlchemy join query referenced `FlaggedTransaction.transaction_id == Transaction.id`. In `app/db/models/flagged_transaction.py`, the foreign key column pointing to `transactions.id` is named `transaction_pk`.
+- How it was fixed: Updated the query to `.join(FlaggedTransaction, FlaggedTransaction.transaction_pk == Transaction.id)`. Verified by running integration test suite `tests/integration/test_evaluate.py` (4/4 tests passing).
+- Alternatives considered: Adding `transaction_id` property or alias to `FlaggedTransaction`, rejected to maintain consistency with existing repositories and declarative model schemas.
+- Lesson learned: Always double-check database model foreign key attribute names when authoring ad-hoc join queries.
+- Related doc updated: yes, docs/PROGRESS.md
+
 ### P-018 | ImportError 'COLOR_SURFACE_CONTAINER' on Streamlit Reports page
 - Date: 2026-10-18
 - Phase: 6

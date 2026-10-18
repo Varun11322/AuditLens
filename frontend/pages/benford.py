@@ -126,7 +126,10 @@ def render_benford_page() -> None:
             unsafe_allow_html=True,
         )
     m2.metric("Mean Absolute Deviation (MAD)", f"{mad:.4f}")
-    m3.metric("Chi-Square (p-value)", f"{chi_sq:.2f} (p={p_val:.3f})")
+    p_compact = "p < 0.001" if p_val < 0.001 else f"p = {p_val:.3f}"
+    with m3:
+        st.metric("Chi-Square", f"{chi_sq:.2f}", help=f"Chi-square p-value: {p_compact}")
+        st.caption(p_compact)
     m4.metric("Sample Size", f"{sample_size:,}")
 
     st.caption(

@@ -130,10 +130,33 @@ def test_report_export_valid_xlsx_and_expected_sheets(
     ws_sum = wb["Summary"]
     assert "AuditLens" in str(ws_sum["A1"].value)
     # Check that settings and run ID are present
-    sum_text = " ".join(str(cell.value) for row in ws_sum.iter_rows() for cell in row if cell.value)
-    assert str(run_id) in sum_text
-    assert "test_report_ledger.csv" in sum_text
-    assert "100,000.00" in sum_text
+    sum_labels = {
+        row[0].value: row[1] for row in ws_sum.iter_rows(min_col=1, max_col=2) if row[0].value
+    }
+    assert "Analysis Run ID" in sum_labels
+    assert sum_labels["Analysis Run ID"].value == run_id
+    r4_label = "Just-below-limit band (R4): from 90% of the approval limit up to the limit"
+    assert r4_label in sum_labels
+    band_cell = sum_labels[r4_label]
+    assert isinstance(band_cell.value, (int, float))
+    assert band_cell.number_format == "0.0%"
+    assert "round_min_amount" in sum_labels
+    assert sum_labels["round_min_amount"].value == 10000.0
+    assert sum_labels["round_min_amount"].number_format == "#,##0.00"
+    assert "round_multiple" in sum_labels
+    assert sum_labels["round_multiple"].value == 1000.0
+    assert sum_labels["round_multiple"].number_format == "#,##0.00"
+
+    # Verify counts and percentages are stored as real numbers, not strings
+    assert "Total Ingested Transactions" in sum_labels
+    total_txns_cell = sum_labels["Total Ingested Transactions"]
+    assert isinstance(total_txns_cell.value, int)
+    assert total_txns_cell.number_format == "#,##0"
+
+    assert "Flagged Rate" in sum_labels
+    rate_cell = sum_labels["Flagged Rate"]
+    assert isinstance(rate_cell.value, float)
+    assert rate_cell.number_format == "0.00%"
 
     # Verify Flagged Transactions sheet content
     ws_flg = wb["Flagged Transactions"]

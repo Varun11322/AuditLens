@@ -192,24 +192,30 @@ def _build_summary_sheet(
         )
 
     overview_rows = [
-        ("Analysis Run ID", run.id),
-        ("Dataset Filename", sanitize_formula_injection(upload.original_filename)),
-        ("Dataset Upload Date", upload.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")),
-        ("Run Execution Status", run.status.upper()),
+        ("Analysis Run ID", run.id, "0"),
+        ("Dataset Filename", sanitize_formula_injection(upload.original_filename), None),
+        ("Dataset Upload Date", upload.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"), None),
+        ("Run Execution Status", run.status.upper(), None),
         (
             "Run Execution Date",
             run.started_at.strftime("%Y-%m-%d %H:%M:%S UTC") if run.started_at else "N/A",
+            None,
         ),
-        ("Pipeline Duration", f"{duration:.2f} seconds"),
-        ("Manager Sign-Off Status", sanitize_formula_injection(signer_info)),
+        ("Pipeline Duration (seconds)", round(duration, 2), "0.00"),
+        ("Manager Sign-Off Status", sanitize_formula_injection(signer_info), None),
     ]
 
     curr_row = 5
-    for label, val in overview_rows:
+    for label, val, num_format in overview_rows:
         ws.cell(row=curr_row, column=1, value=label).font = styles["cell_bold"]
         ws.cell(row=curr_row, column=1).border = styles["thin_border"]
-        ws.cell(row=curr_row, column=2, value=val).font = styles["cell_font"]
-        ws.cell(row=curr_row, column=2).border = styles["thin_border"]
+        c2 = ws.cell(row=curr_row, column=2, value=val)
+        c2.font = styles["cell_font"]
+        c2.border = styles["thin_border"]
+        if num_format:
+            c2.number_format = num_format
+            if num_format in ("0.00", "0"):
+                c2.alignment = styles["align_right"]
         curr_row += 1
 
     # 3. Audit Exception Metrics
@@ -222,7 +228,7 @@ def _build_summary_sheet(
 
     total_accepted = upload.row_count_accepted or 0
     total_flagged = len(flagged_items)
-    flag_pct = (total_flagged / total_accepted * 100.0) if total_accepted > 0 else 0.0
+    flag_fraction = (total_flagged / total_accepted) if total_accepted > 0 else 0.0
 
     scoring_sum = summary_dict.get("scoring", {})
     by_level = scoring_sum.get("by_level", {})
@@ -234,21 +240,38 @@ def _build_summary_sheet(
     )
 
     metric_rows = [
-        ("Total Ingested Transactions", upload.row_count_total or 0),
-        ("Accepted Valid Transactions", total_accepted),
-        ("Total Flagged Exceptions", total_flagged),
-        ("Flagged Rate (%)", f"{flag_pct:.2f}%"),
-        ("High Risk Items (Score >= 70)", by_level.get("High", by_level.get("high", 0))),
-        ("Medium Risk Items (Score 50-69)", by_level.get("Medium", by_level.get("medium", 0))),
-        ("Low Risk Items (Score 30-49)", by_level.get("Low", by_level.get("low", 0))),
-        ("Benford's Law Conformity", sanitize_formula_injection(benford_label)),
+        ("Total Ingested Transactions", int(upload.row_count_total or 0), "#,##0"),
+        ("Accepted Valid Transactions", int(total_accepted), "#,##0"),
+        ("Total Flagged Exceptions", int(total_flagged), "#,##0"),
+        ("Flagged Rate", float(flag_fraction), "0.00%"),
+        (
+            "High Risk Items (Score >= 70)",
+            int(by_level.get("High", by_level.get("high", 0))),
+            "#,##0",
+        ),
+        (
+            "Medium Risk Items (Score 50-69)",
+            int(by_level.get("Medium", by_level.get("medium", 0))),
+            "#,##0",
+        ),
+        (
+            "Low Risk Items (Score 30-49)",
+            int(by_level.get("Low", by_level.get("low", 0))),
+            "#,##0",
+        ),
+        ("Benford's Law Conformity", sanitize_formula_injection(benford_label), None),
     ]
 
-    for label, val in metric_rows:
+    for label, val, num_format in metric_rows:
         ws.cell(row=curr_row, column=1, value=label).font = styles["cell_bold"]
         ws.cell(row=curr_row, column=1).border = styles["thin_border"]
-        ws.cell(row=curr_row, column=2, value=val).font = styles["cell_font"]
-        ws.cell(row=curr_row, column=2).border = styles["thin_border"]
+        c2 = ws.cell(row=curr_row, column=2, value=val)
+        c2.font = styles["cell_font"]
+        c2.border = styles["thin_border"]
+        if num_format:
+            c2.number_format = num_format
+            if num_format in ("#,##0", "0.00%"):
+                c2.alignment = styles["align_right"]
         curr_row += 1
 
     # 4. Settings & Thresholds Configuration
@@ -262,42 +285,50 @@ def _build_summary_sheet(
     curr_row += 1
 
     settings = run.settings or {}
+    approval_limit = float(settings.get("approval_limit", 100000.0))
+    band = float(settings.get("just_below_band", 0.90))
+    band_pct = int(round(band * 100))
+    round_min = float(settings.get("round_min_amount", 10000.0))
+    round_mult = float(settings.get("round_multiple", 1000.0))
+    missing_approver_min = float(settings.get("missing_approver_min_amount", 10000.0))
+    duplicate_window = int(settings.get("duplicate_window_days", 7))
+    bh_start = int(settings.get("business_hours_start", 8))
+    bh_end = int(settings.get("business_hours_end", 20))
+    contamination = float(settings.get("ml_contamination", 0.02))
+    flag_thresh = int(settings.get("flag_threshold", 30))
+    seed = int(settings.get("random_seed", 42))
+
     setting_items = [
-        ("Single Approval Limit (₹)", f"{settings.get('approval_limit', 100000.0):,.2f}"),
+        ("Single Approval Limit (₹)", approval_limit, "#,##0.00"),
         (
-            "Limit Evasion Window",
-            f"{float(settings.get('approval_limit_window', 0.10)) * 100:.0f}%",
+            f"Just-below-limit band (R4): from {band_pct}% of the approval limit up to the limit",
+            band,
+            "0.0%",
         ),
-        ("Duplicate Window (Days)", f"{settings.get('duplicate_window_days', 7)} days"),
-        (
-            "Round Amount Modulos",
-            ", ".join(str(m) for m in settings.get("round_modulos", [1000, 10000, 100000])),
-        ),
-        (
-            "Standard Business Hours",
-            (
-                f"{settings.get('business_hours_start', '08:00')} - "
-                f"{settings.get('business_hours_end', '20:00')}"
-            ),
-        ),
-        ("ML Contamination Factor", f"{settings.get('ml_contamination', 0.02)}"),
-        ("Flag Score Threshold", f"{settings.get('flag_threshold', 30)}"),
-        ("Medium Risk Threshold", f"{settings.get('score_medium_threshold', 50)}"),
-        ("High Risk Threshold", f"{settings.get('score_high_threshold', 70)}"),
-        ("Model Random Seed", f"{settings.get('random_seed', 42)}"),
+        ("Duplicate Window (Days)", duplicate_window, "#,##0"),
+        ("round_min_amount", round_min, "#,##0.00"),
+        ("round_multiple", round_mult, "#,##0.00"),
+        ("missing_approver_min_amount", missing_approver_min, "#,##0.00"),
+        ("Standard Business Hours", f"{bh_start:02d}:00 - {bh_end:02d}:00", None),
+        ("ML Contamination Factor", contamination, "0.00%"),
+        ("Flag Score Threshold", flag_thresh, "0"),
+        ("Model Random Seed", seed, "0"),
     ]
 
-    for label, val in setting_items:
+    for label, val, num_format in setting_items:
         ws.cell(row=curr_row, column=1, value=label).font = styles["cell_bold"]
         ws.cell(row=curr_row, column=1).border = styles["thin_border"]
-        ws.cell(row=curr_row, column=2, value=sanitize_formula_injection(val)).font = styles[
-            "cell_font"
-        ]
-        ws.cell(row=curr_row, column=2).border = styles["thin_border"]
+        c2 = ws.cell(row=curr_row, column=2, value=val)
+        c2.font = styles["cell_font"]
+        c2.border = styles["thin_border"]
+        if num_format:
+            c2.number_format = num_format
+            if num_format in ("#,##0.00", "#,##0", "0.0%", "0.00%", "0"):
+                c2.alignment = styles["align_right"]
         curr_row += 1
 
-    ws.column_dimensions["A"].width = 38
-    ws.column_dimensions["B"].width = 46
+    ws.column_dimensions["A"].width = 70
+    ws.column_dimensions["B"].width = 30
 
 
 def _build_flagged_sheet(
@@ -492,19 +523,27 @@ def _build_benford_sheet(
     ws.row_dimensions[3].height = 20
 
     conformity_stats = [
-        ("Analysis Sample Size", overall.get("sample_size", 0)),
-        ("Conformity Level", sanitize_formula_injection(overall.get("conformity_label", "N/A"))),
-        ("Mean Absolute Deviation (MAD)", f"{overall.get('mad', 0.0):.4f}"),
-        ("Chi-Square Statistic", f"{overall.get('chi_square', 0.0):.2f}"),
-        ("P-Value", f"{overall.get('p_value', 0.0):.4f}"),
+        ("Analysis Sample Size", int(overall.get("sample_size", 0)), "#,##0"),
+        (
+            "Conformity Level",
+            sanitize_formula_injection(overall.get("conformity_label", "N/A")),
+            None,
+        ),
+        ("Mean Absolute Deviation (MAD)", float(overall.get("mad", 0.0)), "0.0000"),
+        ("Chi-Square Statistic", float(overall.get("chi_square", 0.0)), "0.00"),
+        ("P-Value", float(overall.get("p_value", 0.0)), "0.0000"),
     ]
 
     curr_row = 4
-    for label, val in conformity_stats:
+    for label, val, num_format in conformity_stats:
         ws.cell(row=curr_row, column=1, value=label).font = styles["cell_bold"]
         ws.cell(row=curr_row, column=1).border = styles["thin_border"]
-        ws.cell(row=curr_row, column=2, value=val).font = styles["cell_font"]
-        ws.cell(row=curr_row, column=2).border = styles["thin_border"]
+        c2 = ws.cell(row=curr_row, column=2, value=val)
+        c2.font = styles["cell_font"]
+        c2.border = styles["thin_border"]
+        if num_format:
+            c2.number_format = num_format
+            c2.alignment = styles["align_right"]
         curr_row += 1
 
     # Section 2: First-Digit Frequency Distribution Table

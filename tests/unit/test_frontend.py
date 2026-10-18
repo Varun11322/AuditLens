@@ -326,3 +326,24 @@ def test_api_client_get_report():
         assert args[0] == "http://testserver:8000/runs/1/report"
         assert kwargs["params"] == {"format": "xlsx"}
         assert kwargs["headers"]["Authorization"] == "Bearer mock-token"
+
+
+def test_api_client_evaluate_run():
+    client = ApiClient(base_url="http://testserver:8000")
+    dummy_payload = {"strict_precision": 0.95, "overall_recall": 1.0}
+    mock_resp = httpx.Response(
+        status_code=200,
+        json=dummy_payload,
+        request=httpx.Request("POST", "http://testserver:8000/runs/1/evaluate"),
+    )
+    with patch("httpx.Client.post", return_value=mock_resp) as mock_post:
+        res = client.evaluate_run(
+            "mock-token", run_id=1, file_content=b"test_csv", filename="gt.csv"
+        )
+        assert res == dummy_payload
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        assert args[0] == "http://testserver:8000/runs/1/evaluate"
+        assert "files" in kwargs
+        assert kwargs["files"]["file"] == ("gt.csv", b"test_csv", "text/csv")
+        assert kwargs["headers"]["Authorization"] == "Bearer mock-token"
