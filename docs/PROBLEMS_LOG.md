@@ -23,6 +23,50 @@
 
 ## Log
 
+### P-013 | Triggered rule codes column name mismatch between analytics engine and DB mapping
+- Date: 2026-10-18
+- Phase: 4
+- Status: Resolved
+- What happened: Filtering flagged items by rule (`GET /runs/{id}/flagged?rule=R1`) returned 0 results even though R1 anomalies were present and flagged.
+- Root cause: `execute_analysis_pipeline` mapped `row.get("triggered_rules")`, whereas the analytics engine in `app/analytics/scoring.py` emitted the column as `"triggered_rule_codes"`. As a result, empty lists were inserted into `flagged_transactions.triggered_rules`.
+- How it was fixed: Updated `app/services/analysis_service.py` to extract `row.get("triggered_rule_codes", row.get("triggered_rules", []))`.
+- Alternatives considered: Modifying analytics engine column names, rejected to preserve pure analytics interface stability and backward compatibility.
+- Lesson learned: Always verify the exact DataFrame column names emitted by upstream pure analytics functions when transforming them into database entities.
+- Related doc updated: no
+
+### P-012 | Pydantic EmailStr dependency missing in virtual environment
+- Date: 2026-10-18
+- Phase: 4
+- Status: Resolved
+- What happened: Pytest failed during test collection with `ImportError: email-validator is not installed, run pip install 'pydantic[email]'`.
+- Root cause: `EmailStr` in Pydantic v2 requires the optional third-party library `email-validator`, which was not included in `pyproject.toml` dependencies.
+- How it was fixed: Replaced `EmailStr` in `app/schemas/auth.py` with standard Pydantic `Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")`.
+- Alternatives considered: Adding `email-validator` to project dependencies, rejected because standard regex validation avoids adding an external library dependency.
+- Lesson learned: Check whether specialized Pydantic types carry optional extras before introducing them into schemas.
+- Related doc updated: no
+
+### P-011 | Case mismatch on risk_level check constraint ('Medium' vs 'medium')
+- Date: 2026-10-18
+- Phase: 4
+- Status: Resolved
+- What happened: Background analysis pipeline failed with `CheckViolation: new row for relation "flagged_transactions" violates check constraint "ck_flagged_transactions_risk_level"` (`DETAIL: Failing row contains (..., Medium, ...)`).
+- Root cause: The database table schema defines `CheckConstraint("risk_level IN ('high', 'medium', 'low')")` with lowercase literals, whereas `app/analytics/scoring.py` returns capitalized strings (`'High'`, `'Medium'`, `'Low'`).
+- How it was fixed: Normalized `str(row["risk_level"]).lower()` when constructing records in `app/services/analysis_service.py`. Also added `db.rollback()` in the exception handler before recording run failure.
+- Alternatives considered: Relaxing the database constraint, rejected because strict lowercase enum constraints align with API query conventions.
+- Lesson learned: Enforce case normalization at the service-to-database boundary when mapping analytics engine output to database models.
+- Related doc updated: no
+
+### P-010 | PostgreSQL parameter limit exceeded during multi-row bulk insert
+- Date: 2026-10-18
+- Phase: 4
+- Status: Resolved
+- What happened: Uploading the 50,000-row `data/ledger.csv` failed with `psycopg.OperationalError: sending query and params failed: number of parameters must be between 0 and 65535`.
+- Root cause: A single `insert(Transaction).values(transactions_data)` statement with 50,000 rows across 10 columns resulted in 500,000 bind parameters, far exceeding PostgreSQL's protocol maximum of 65,535 parameters.
+- How it was fixed: Implemented chunked batching in `app/repositories/transaction_repo.py` and `app/repositories/flagged_repo.py` with `batch_size=2000` (max 20,000 parameters per chunk).
+- Alternatives considered: Raw PostgreSQL `COPY` via psycopg binary stream; chunked batching was preferred for simplicity, portable SQLAlchemy Core compatibility, and sub-second execution on 50,000 rows.
+- Lesson learned: Always batch bulk inserts into bounded chunks when inserting tens of thousands of rows into relational databases.
+- Related doc updated: yes, `docs/PROGRESS.md`
+
 ### P-009 | DetachedInstanceError after db_session.expunge_all() in cascade delete test
 - Date: 2026-10-18
 - Phase: 3

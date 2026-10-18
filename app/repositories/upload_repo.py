@@ -80,3 +80,36 @@ def delete_upload(db: Session, upload_id: int) -> bool:
     db.delete(upload)
     db.commit()
     return True
+
+
+def list_uploads(
+    db: Session,
+    *,
+    user_id: int | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[Upload], int]:
+    """Retrieve paginated uploads, optionally filtered by user ID.
+
+    Args:
+        db: Active database session.
+        user_id: Optional user ID filter (used for auditors).
+        limit: Maximum number of records to return.
+        offset: Offset for pagination.
+
+    Returns:
+        tuple[list[Upload], int]: Tuple of (matching uploads list, total count).
+    """
+    from sqlalchemy import desc, func, select
+
+    stmt = select(Upload)
+    count_stmt = select(func.count(Upload.id))
+
+    if user_id is not None:
+        stmt = stmt.where(Upload.user_id == user_id)
+        count_stmt = count_stmt.where(Upload.user_id == user_id)
+
+    total = db.scalar(count_stmt) or 0
+    stmt = stmt.order_by(desc(Upload.created_at)).limit(limit).offset(offset)
+    items = list(db.scalars(stmt).all())
+    return items, total

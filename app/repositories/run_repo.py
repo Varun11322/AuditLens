@@ -92,3 +92,50 @@ def update_analysis_run_status(
     db.commit()
     db.refresh(run)
     return run
+
+
+def get_runs_by_upload(db: Session, upload_id: int) -> list[AnalysisRun]:
+    """Retrieve all analysis runs for an upload ordered newest first.
+
+    Args:
+        db: Active database session.
+        upload_id: Associated upload ID.
+
+    Returns:
+        list[AnalysisRun]: List of analysis runs.
+    """
+    from sqlalchemy import desc, select
+
+    stmt = (
+        select(AnalysisRun)
+        .where(AnalysisRun.upload_id == upload_id)
+        .order_by(desc(AnalysisRun.created_at))
+    )
+    return list(db.scalars(stmt).all())
+
+
+def sign_off_run(
+    db: Session,
+    run_id: int,
+    manager_id: int,
+    signed_off_at: datetime,
+) -> AnalysisRun | None:
+    """Record manager sign-off on an analysis run.
+
+    Args:
+        db: Active database session.
+        run_id: Analysis run ID.
+        manager_id: User ID of manager.
+        signed_off_at: Timestamp of sign-off.
+
+    Returns:
+        AnalysisRun | None: Updated AnalysisRun instance.
+    """
+    run = db.get(AnalysisRun, run_id)
+    if not run:
+        return None
+    run.signed_off_by = manager_id
+    run.signed_off_at = signed_off_at
+    db.commit()
+    db.refresh(run)
+    return run

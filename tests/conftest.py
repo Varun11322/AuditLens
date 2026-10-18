@@ -48,6 +48,12 @@ def setup_test_database() -> str:
     alembic_cfg.set_main_option("sqlalchemy.url", test_db_url)
     command.upgrade(alembic_cfg, "head")
 
+    # Point SessionLocal to the test database for background tasks
+    from app.db.session import SessionLocal
+
+    test_engine = create_engine(test_db_url, pool_pre_ping=True)
+    SessionLocal.configure(bind=test_engine)
+
     return test_db_url
 
 
@@ -72,3 +78,107 @@ def db_session(setup_test_database: str) -> Generator[Session, None, None]:
     finally:
         session.close()
         engine.dispose()
+
+
+@pytest.fixture
+def client(db_session: Session) -> Generator:
+    """Provide a TestClient instance with get_db overridden to use db_session."""
+    from fastapi.testclient import TestClient
+
+    from app.db.session import get_db
+    from app.main import app
+
+    def override_get_db() -> Generator[Session, None, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def manager_user(db_session: Session):
+    """Seed and return a manager user."""
+    from app.core.security import hash_password
+    from app.db.models.user import User
+
+    user = User(
+        email="manager@example.com",
+        full_name="Test Manager",
+        password_hash=hash_password("Manager123!"),
+        role="manager",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def manager_token(manager_user) -> str:
+    """Generate a valid JWT bearer token for manager_user."""
+    from app.core.security import create_access_token
+
+    return create_access_token(
+        {"sub": str(manager_user.id), "email": manager_user.email, "role": manager_user.role}
+    )
+
+
+@pytest.fixture
+def auditor_user(db_session: Session):
+    """Seed and return a primary auditor user."""
+    from app.core.security import hash_password
+    from app.db.models.user import User
+
+    user = User(
+        email="auditor1@example.com",
+        full_name="Primary Auditor",
+        password_hash=hash_password("Auditor123!"),
+        role="auditor",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def auditor_token(auditor_user) -> str:
+    """Generate a valid JWT bearer token for auditor_user."""
+    from app.core.security import create_access_token
+
+    return create_access_token(
+        {"sub": str(auditor_user.id), "email": auditor_user.email, "role": auditor_user.role}
+    )
+
+
+@pytest.fixture
+def second_auditor(db_session: Session):
+    """Seed and return a secondary auditor user for ownership isolation testing."""
+    from app.core.security import hash_password
+    from app.db.models.user import User
+
+    user = User(
+        email="auditor2@example.com",
+        full_name="Second Auditor",
+        password_hash=hash_password("Auditor2Secret!"),
+        role="auditor",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def second_auditor_token(second_auditor) -> str:
+    """Generate a valid JWT bearer token for second_auditor."""
+    from app.core.security import create_access_token
+
+    return create_access_token(
+        {"sub": str(second_auditor.id), "email": second_auditor.email, "role": second_auditor.role}
+    )

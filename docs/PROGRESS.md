@@ -4,8 +4,8 @@
 > Be honest: only mark something Done if it was actually run and verified.
 
 **Last updated:** 2026-10-18  
-**Current phase:** Phase 3 completed (Phase 4 next)  
-**Overall completion:** 4 of 8 phases  
+**Current phase:** Phase 4 completed (Phase 5 next)  
+**Overall completion:** 5 of 8 phases  
 
 ## 1. Phase Status
 Status values: Not started / In progress / Done / Blocked
@@ -16,17 +16,18 @@ Status values: Not started / In progress / Done / Blocked
 | 1 | Synthetic ledger generator | Done | 2026-10-17 | 7/7 | Pass | Generator script `scripts/generate_synthetic_ledger.py`, canonical schema, vectorized injection, 7/7 unit & integration tests pass, generates 50k rows in < 1s |
 | 2 | Analytics engine (rules, Benford, ML, scoring) | Done | 2026-10-17 | 31/31 | Pass | Pure analytics package (`app/analytics/`) with settings, validation, rules R1-R6, Benford test, ML features, IsolationForest, scoring, pipeline, evaluation; 94% coverage; 50k rows in 2.18s |
 | 3 | Database models and migrations | Done | 2026-10-18 | 44/44 | Pass | SQLAlchemy 2.x models for all 7 tables in DATABASE.md, Alembic setup & initial migration, scripts/seed_admin.py using bcrypt directly, repository CRUD functions, integration & constraint tests; 95% total coverage |
-| 4 | FastAPI backend | Not started | | | | |
+| 4 | FastAPI backend | Done | 2026-10-18 | 63/63 | Pass | Full REST API per API.md: JWT + direct bcrypt, login rate limit, role/ownership guards, upload validation/cascade, background analysis pipeline, Benford & flagged filter/sort/paginate, review PATCH, manager sign-off; 94% coverage; verified live against 50k ledger |
 | 5 | Streamlit UI | Not started | | | | |
 | 6 | Excel report export | Not started | | | | |
 | 7 | Evaluation page, Docker, README | Not started | | | | |
 
+
 ## 2. Feature Checklist (from PRD.md)
-- [ ] F1 Authentication and roles
-- [ ] F2 File upload and validation
+- [x] F1 Authentication and roles
+- [x] F2 File upload and validation
 - [x] F3 Analysis run
 - [ ] F4 Dashboard
-- [ ] F5 Flagged transactions review (incl. sign-off)
+- [x] F5 Flagged transactions review (incl. sign-off)
 - [ ] F6 Exceptions report export
 - [x] F7 Synthetic data generator
 - [ ] F8 Evaluation page (should have)
@@ -47,10 +48,11 @@ Status values: Not started / In progress / Done / Blocked
 ## 4. Key Results (fill in as they become available)
 | Metric | Value | Date |
 |---|---|---|
-| Total test count / overall coverage on app | 44 tests passing (13 DB & repo tests + 24 analytics unit + 6 generator unit + 1 health) / 95% coverage | 2026-10-18 |
+| Total test count / overall coverage on app | 63 tests passing (19 backend integration + 13 DB/repo + 24 analytics unit + 6 generator unit + 1 health) / 94% coverage | 2026-10-18 |
+| Backend integration tests | 19 integration tests passing (auth, user management, uploads, validation, pipeline, flagged query, review, sign-off) | 2026-10-18 |
+| Live E2E analysis run on 50,000-row ledger | 1.98s background execution time; exactly 1,386 flagged items persisted (High: 21, Medium: 203, Low: 1,162) | 2026-10-18 |
 | Unit test count / coverage on app/analytics | 31 tests passing / 94% coverage | 2026-10-17 |
 | Runtime on 50,000 rows | 2.18s analysis pipeline runtime (benchmark < 60s) | 2026-10-17 |
-| Flagged count on ledger.csv | 1,386 flagged (High: 21, Medium: 203, Low: 1,162) | 2026-10-17 |
 | Strong rules recall (R1, R2, R3, R4) | 100% rule-fire recall and 100% flag recall (R1: 232/232, R2: 215/215, R3: 214/214, R4: 228/228) | 2026-10-17 |
 | Weak supporting rules recall (R5, R6) | Rule-fire recall: 100% on R5 (224/224) and R6 (314 fires). Flag recall: 21.9% on R5 (49/224) and 49.6% on R6 (123/248), reaching flag threshold (30) when combined with ML points or another rule | 2026-10-17 |
 | Recall on random outliers (ML) | 85.5% (183 / 214 caught by Isolation Forest) | 2026-10-17 |
@@ -66,14 +68,15 @@ List anything implemented differently from the .md documents, and whether the do
 
 ## 6. Known Limitations / Not Done
 - **Per-run min-max ML scaling**: The Isolation Forest anomaly scores use per-run min-max scaling to [0, 1]. On an entirely clean ledger with no injected outliers, the relative spread of normal statistical variance still produces ~0.66% Low-risk flags (330 of 50,000) driven by ML alone. Future improvements include calibrated absolute thresholds or requiring a supporting rule trigger for ML-only flags.
-- **Pending phases**: Database models, migrations, repositories, and seed script (Phase 3) are complete. FastAPI backend endpoints, Streamlit UI, and Excel report export are scheduled for Phases 4 through 7.
+- **Pending phases**: Phase 4 FastAPI backend is fully implemented and verified. Streamlit UI (Phase 5), Excel report export (Phase 6), and Evaluation endpoint/page (Phase 7) are scheduled next.
 
 ## 7. Next Steps
-- Phase 4: Implement FastAPI backend (auth with JWT, user management, file upload and parsing, background analysis task execution, review actions, sign-off, and exceptions report endpoints).
+- Phase 5: Implement Streamlit frontend connecting to the FastAPI backend (Auth/Session management, Upload & Run view, Overview Dashboard, Flagged Transactions review table with filter/search and detail modal, Manager Sign-off, and Benford charts).
 
 ## 8. Change History
 | Date | Phase | Summary of what changed |
 |---|---|---|
+| 2026-10-18 | 4 | Implemented complete FastAPI backend per `docs/API.md`: JWT auth + direct bcrypt, login rate limiting (10/min), role & ownership guards (`auditor`, `manager`), upload validation and streaming storage with cascade delete, background task analysis execution via `app/analytics/pipeline.py`, run status polling, Benford summary results, flagged transaction query with pagination/filtering/sorting, transaction detail with duplicate pair detection and review history, review status updates with audit trail, and manager sign-off validation. Added 19 integration tests (63 total passing, 94% coverage) and verified live E2E flow with seeded admin against 50,000-row `data/ledger.csv`. |
 | 2026-10-18 | 3 | Implemented SQLAlchemy 2.x declarative models for all 7 tables in `docs/DATABASE.md`, Alembic configuration and initial migration `e36e1036ff17_initial_schema`, `scripts/seed_admin.py` with direct bcrypt hashing and idempotency, minimal repository functions across all entities, and comprehensive integration tests verifying fresh DB upgrade/downgrade and constraints. Achieved 95% total test coverage (44 passing tests). |
 | 2026-10-17 | 2 | Implemented pure analytics engine in `app/analytics/`: `settings.py`, `validation.py`, `rules.py` (R1-R6), `benford.py`, `features.py`, `ml.py` (IsolationForest), `scoring.py`, `pipeline.py`, and `evaluation.py`. Added unit tests in `tests/unit/analytics/` achieving 94% test coverage. Validated on 50k ledger (2.18s runtime, 99.93% audit precision). |
 | 2026-10-17 | 1 | Implemented `scripts/generate_synthetic_ledger.py` with CLI arguments (--rows, --seed, --out-dir), canonical schema, 200 vendor profiles, vectorized anomaly injection for all 7 anomaly types, and unit tests in `tests/unit/test_synthetic_ledger.py`. Generated 50,000-row default datasets in `data/`. |
