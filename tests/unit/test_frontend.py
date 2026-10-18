@@ -305,3 +305,24 @@ def test_plotly_chart_builders():
     # Benford chart
     fig5 = create_benford_chart({1: 0.301}, {1: 0.301})
     assert len(fig5.data) == 2
+
+
+def test_api_client_get_report():
+    client = ApiClient(base_url="http://testserver:8000")
+    dummy_xlsx = b"PK\x03\x04dummy_excel_bytes"
+    mock_resp = httpx.Response(
+        status_code=200,
+        content=dummy_xlsx,
+        headers={
+            "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        request=httpx.Request("GET", "http://testserver:8000/runs/1/report?format=xlsx"),
+    )
+    with patch("httpx.Client.get", return_value=mock_resp) as mock_get:
+        content = client.get_report("mock-token", run_id=1, format="xlsx")
+        assert content == dummy_xlsx
+        mock_get.assert_called_once()
+        args, kwargs = mock_get.call_args
+        assert args[0] == "http://testserver:8000/runs/1/report"
+        assert kwargs["params"] == {"format": "xlsx"}
+        assert kwargs["headers"]["Authorization"] == "Bearer mock-token"

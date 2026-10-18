@@ -23,6 +23,28 @@
 
 ## Log
 
+### P-018 | ImportError 'COLOR_SURFACE_CONTAINER' on Streamlit Reports page
+- Date: 2026-10-18
+- Phase: 6
+- Status: Resolved
+- What happened: Loading the Reports page in Streamlit raised `ImportError: cannot import name 'COLOR_SURFACE_CONTAINER' from 'frontend.constants'`.
+- Root cause: `frontend/pages/reports.py` attempted to import `COLOR_SURFACE_CONTAINER`, but the background surface color token in `frontend/constants.py` is named `COLOR_SURFACE`.
+- How it was fixed: Updated `frontend/pages/reports.py` to import and reference `COLOR_SURFACE`. Validated by running an automated `AppTest` suite against `frontend/app.py` in a fresh Python process with `PYTHONPATH` cleared, confirming 0 exceptions and successful rendering of all metrics and download widgets.
+- Alternatives considered: Adding `COLOR_SURFACE_CONTAINER` as an alias in `frontend/constants.py`, rejected to keep constants token names canonical and consistent with `docs/DESIGN_SYSTEM.md`.
+- Lesson learned: Always run live end-to-end rendering checks in isolated processes to catch import and attribute discrepancies before finishing phase verification.
+- Related doc updated: yes, docs/PROGRESS.md
+
+### P-017 | TypeError 'storage_path' when instantiating Upload model in report integration tests
+- Date: 2026-10-18
+- Phase: 6
+- Status: Resolved
+- What happened: Running integration tests in `tests/integration/test_report.py` failed with `TypeError: 'storage_path' is an invalid keyword argument for Upload`.
+- Root cause: In `test_report.py`, mock `Upload` rows were initialized with `storage_path="uploads/..."` instead of the model column `stored_path`, and were missing the required `file_type="csv"` check constraint attribute.
+- How it was fixed: Updated `Upload` instantiations in `test_report.py` to use `stored_path` and `file_type="csv"`. All 79 tests now pass cleanly.
+- Alternatives considered: Calling the upload HTTP endpoint in every test, rejected for zero-flag and formula-injection tests to keep tests fast and focused on report generation rather than redundant file parsing.
+- Lesson learned: Verify declarative model column names in `app/db/models/` when authoring direct ORM test fixtures.
+- Related doc updated: no
+
 ### P-016 | ModuleNotFoundError 'frontend' when running Streamlit without PYTHONPATH
 - Date: 2026-10-18
 - Phase: 5

@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
+from app.core.exceptions import ValidationError
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.flagged import FlaggedListResponse
@@ -17,6 +18,7 @@ from app.services.analysis_service import (
     sign_off_analysis_run,
 )
 from app.services.flagged_service import list_flagged_transactions
+from app.services.report_service import generate_excel_report
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -100,4 +102,28 @@ def get_flagged_transactions_route(
         page=page,
         page_size=page_size,
         items=items,
+    )
+
+
+@router.get("/{run_id}/report")
+def get_run_report_route(
+    run_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    format: Annotated[
+        str, Query(description="Report file format (only 'xlsx' supported)")
+    ] = "xlsx",
+) -> Response:
+    """Download the multi-sheet Excel exceptions report for a completed analysis run."""
+    if format.lower() != "xlsx":
+        raise ValidationError(
+            code="unsupported_format",
+            message=f"Unsupported report format '{format}'. Only 'xlsx' is supported.",
+        )
+
+    xlsx_bytes, filename = generate_excel_report(db, run_id, current_user)
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

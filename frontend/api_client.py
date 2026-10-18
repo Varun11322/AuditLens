@@ -277,6 +277,16 @@ class ApiClient:
                 _handle_response_error(resp)
             return resp.json()
 
+    def get_report(self, token: str, run_id: int, format: str = "xlsx") -> bytes:
+        """Download the Excel audit report (.xlsx) for a completed analysis run."""
+        url = f"{self.base_url}/runs/{run_id}/report"
+        params = {"format": format}
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.get(url, params=params, headers=self._headers(token))
+            if resp.is_error:
+                _handle_response_error(resp)
+            return resp.content
+
 
 # Shared singleton client instance
 api_client = ApiClient()
