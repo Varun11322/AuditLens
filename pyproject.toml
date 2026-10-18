@@ -36,7 +36,7 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*"]
+include = ["app*", "frontend*"]
 
 [tool.ruff]
 line-length = 100
@@ -52,6 +52,9 @@ select = [
     "UP",  # pyupgrade
 ]
 ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"frontend/app.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

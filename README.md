@@ -121,7 +121,7 @@ Verify that the service is running:
 
 ### 6. Running the Streamlit Frontend
 
-In a separate terminal (with the virtual environment activated), start the Streamlit web interface:
+In a separate terminal (from the project root, with the virtual environment activated):
 
 ```bash
 streamlit run frontend/app.py --server.port 8501

@@ -1,5 +1,13 @@
 """Main Streamlit application entry point for AuditLens."""
 
+import sys
+from pathlib import Path
+
+# Ensure project root is on sys.path when invoked via `streamlit run frontend/app.py`
+_ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
+
 import streamlit as st
 
 from frontend.pages.benford import render_benford_page

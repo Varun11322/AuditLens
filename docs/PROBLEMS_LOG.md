@@ -23,6 +23,17 @@
 
 ## Log
 
+### P-016 | ModuleNotFoundError 'frontend' when running Streamlit without PYTHONPATH
+- Date: 2026-10-18
+- Phase: 5
+- Status: Resolved
+- What happened: Running `streamlit run frontend/app.py --server.port 8501` in a fresh terminal with the virtual environment activated failed with `ModuleNotFoundError: No module named 'frontend'`.
+- Root cause: When Streamlit runs a script (`frontend/app.py`), Python puts the script's directory (`<project_root>/frontend`) at `sys.path[0]`, not the project root. Consequently, absolute imports such as `from frontend.pages...` look for a nested `frontend` folder inside `frontend/`. In addition, `pyproject.toml` only included `app*` in `[tool.setuptools.packages.find]`, so `frontend` was not installed as an editable package into site-packages.
+- How it was fixed: 1) Added a `sys.path` bootstrap at the top of `frontend/app.py` to ensure the project root is always inserted into `sys.path`. 2) Added `"frontend*"` to `pyproject.toml`'s package include list and re-ran `pip install -e .`. Verified in a fresh PowerShell process with `PYTHONPATH` unset that Streamlit starts and `http://localhost:8501` returns HTTP 200.
+- Alternatives considered: Requiring users to set `$env:PYTHONPATH = "."` in terminal instructions, rejected because it is error-prone, platform-specific, and violates frictionless setup expectations.
+- Lesson learned: Always test entry points in a pristine subprocess with all environment overrides (`PYTHONPATH`, etc.) cleared. Include all top-level application packages in `pyproject.toml`'s package discovery configuration.
+- Related doc updated: yes, README.md
+
 ### P-015 | Dashboard "Total Transactions" displays 0 due to validation summary key mismatch
 - Date: 2026-10-18
 - Phase: 5
