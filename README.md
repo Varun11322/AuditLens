@@ -149,6 +149,7 @@ For non-Docker local runs, Streamlit binds to `localhost` by default.
    ```bash
    pip install -e .
    ```
+   > **Known compatibility note**: Pillow 13 (`pillow>=13.0.0`) is used for security fixes to address known CVEs, although Streamlit declares `pillow<13`. It was thoroughly tested across all pages and charts and works without issues, but is not an officially supported combination by Streamlit's package metadata.
 
 4. **Configure environment**:
    ```bash
@@ -254,10 +255,13 @@ ruff format --check .
 ## 7. Known Limitations
 
 1. **Synthetic Data Only**: AuditLens was developed and evaluated against synthetic transaction ledgers adhering to the canonical schema. Real enterprise ledgers have varying chart-of-account formats, custom field names, and missing historical context.
-2. **Benford's Law Note**: Non-conformity to Benford's Law is an investigative indicator, not proof of irregularity or fraud. Certain operational accounts (e.g., standardized contract milestones, fixed service fees, travel allowances) naturally deviate from logarithmic distributions.
-3. **Per-Run ML Scaling**: Isolation Forest anomaly scores use per-run min-max scaling to [0, 1]. In a completely clean dataset with zero genuine outliers, the statistical tails of normal variance will still result in ~0.66% Low-risk flags.
+2. **Benford's Law Non-Conformity on Synthetic Data**: Non-conformity to Benford's Law is an investigative indicator, not proof of irregularity or fraud. Certain operational accounts (e.g., standardized contract milestones, fixed service fees, travel allowances) naturally deviate from logarithmic distributions.
+3. **Per-Run ML Score Scaling**: Isolation Forest anomaly scores use per-run min-max scaling to [0, 1]. In a completely clean dataset with zero genuine outliers, the statistical tails of normal variance will still result in ~0.66% Low-risk flags.
 4. **Weak Supporting Signals (R5 & R6)**: Round amounts (R5) and weekend/after-hours postings (R6) are intentionally assigned 10 risk points each. They do not trigger an audit flag on their own without an accompanying rule trigger or elevated ML score (>= 30 points) to prevent auditor alert fatigue.
-5. **Local Deployment Scope**: The architecture is designed for local workstation and containerized evaluation. Multi-tenant SaaS isolation and distributed worker queues (e.g., Celery/Redis) are planned for subsequent iterations.
+5. **In-Memory Rate Limiter**: The SlowAPI rate limiter runs in-memory within a single API process. In multi-worker or multi-container production deployments, an attacker could bypass rate limits across workers without a centralized shared cache (e.g., Redis).
+6. **In-Process Background Tasks**: Analysis runs are dispatched via FastAPI's `BackgroundTasks`, executing on the same thread pool and sharing API process memory and CPU. For enterprise scale (millions of rows), runs should be offloaded to an asynchronous distributed task queue (e.g., Celery / ARQ + Redis).
+7. **Sign-Off Concurrency**: Manager sign-off inspects flagged item review statuses before recording completion. In a high-concurrency multi-user environment, a race condition could occur if an auditor modifies an item concurrently during sign-off. Production enterprise systems should enforce database-level transaction locking (`SELECT FOR UPDATE`) or an audit freeze state.
+8. **Local Deployment Scope**: The architecture is designed for local workstation and containerized evaluation. Multi-tenant SaaS isolation and distributed worker queues (e.g., Celery/Redis) are planned for subsequent iterations.
 
 ---
 
