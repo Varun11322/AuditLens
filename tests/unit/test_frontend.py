@@ -383,3 +383,51 @@ def test_streamlit_authenticated_pages_smoke(page_name: str):
     at.session_state["nav_destination"] = page_name
     at.run()
     assert not at.exception, f"Page {page_name} raised exception: {at.exception}"
+
+
+def test_reports_page_download_button_arguments():
+    """Verify st.download_button is created with exact file_name and xlsx mime type."""
+    from frontend.pages.reports import render_reports_page
+
+    mock_uploads = {"items": [{"id": 10, "original_filename": "ledger.csv"}]}
+    mock_runs = [{"id": 42, "status": "completed", "finished_at": "2026-10-25T12:00:00"}]
+    mock_run_detail = {
+        "id": 42,
+        "summary": {
+            "scoring": {
+                "total_flagged": 5,
+                "by_level": {"high": 2, "medium": 2, "low": 1},
+            }
+        },
+        "signed_off_by": 1,
+        "signed_off_at": "2026-10-25T12:30:00",
+    }
+    dummy_bytes = b"PK\x03\x04dummy_excel"
+
+    with patch("frontend.pages.reports.get_token", return_value="mock-token"), \
+         patch("frontend.pages.reports.render_sidebar"), \
+         patch("frontend.pages.reports.api_client.list_uploads", return_value=mock_uploads), \
+         patch("frontend.pages.reports.api_client.list_runs_for_upload", return_value=mock_runs), \
+         patch("frontend.pages.reports.api_client.get_run", return_value=mock_run_detail), \
+         patch("frontend.pages.reports.api_client.get_report", return_value=dummy_bytes), \
+         patch("frontend.pages.reports.st.download_button") as mock_download_btn:
+
+        render_reports_page()
+
+        mock_download_btn.assert_called_once()
+        _, kwargs = mock_download_btn.call_args
+        xlsx_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        assert kwargs["file_name"] == "auditlens_report_run_42.xlsx"
+        assert kwargs["mime"] == xlsx_mime
+        assert kwargs["data"] == dummy_bytes
+
+
+def test_openxml_mimetype_registration():
+    """Verify that OpenXML spreadsheet MIME type resolves to .xlsx extension."""
+    import mimetypes
+
+    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ext = mimetypes.guess_extension(mime)
+    assert ext is not None
+    assert ext.lower() == ".xlsx"
+

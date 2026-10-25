@@ -7,12 +7,22 @@ and categorized exception sheets.
 
 from __future__ import annotations
 
+import mimetypes
+
 import streamlit as st
 
 from frontend.api_client import ApiClientError, api_client
 from frontend.components.auth_guard import get_token, handle_api_call, render_sidebar
 from frontend.components.badges import format_datetime
 from frontend.constants import COLOR_PRIMARY, COLOR_SURFACE
+
+# Ensure OpenXML spreadsheet MIME type is registered in Python's mimetypes database
+# so Streamlit media file storage reliably resolves .xlsx across all operating systems
+# (including minimal Linux containers lacking /etc/mime.types).
+mimetypes.add_type(
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xlsx",
+)
 
 
 def render_reports_page() -> None:

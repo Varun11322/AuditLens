@@ -23,6 +23,18 @@
 
 ## Log
 
+### P-023 | Excel audit report download saved as extensionless UUID in Docker
+- Date: 2026-10-25
+- Phase: Review Fixes / Docker Deployment
+- Status: Resolved
+- What happened: Clicking the "Download Excel Audit Report" button on the Reports page in Streamlit when running via Docker Compose saved the report file with an extensionless UUID name (e.g. `2daf9414-dc45-4a53-b4bf-227bc0283b6e`), preventing Windows from opening it as an Excel spreadsheet without manually adding `.xlsx`. Earlier runs on Windows had downloaded as `auditlens_report_run_N.xlsx`.
+- Root cause: In `frontend/pages/reports.py`, `st.download_button` specifies MIME type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Streamlit's `MemoryMediaFileStorage.get_url()` computes media download URL extensions via `get_extension_for_mimetype()`, which queries Python's standard `mimetypes.guess_extension()`. On Windows host environments, Python maps this MIME type via the Windows Registry (`HKEY_CLASSES_ROOT\MIME\Database\Content Type`) to `.XLSX`. In the Docker container (`python:3.11-slim`), Debian minimal lacked `/etc/mime.types` (the `media-types` package was not installed), causing `mimetypes.guess_extension()` to return `None`. Streamlit consequently generated an extensionless media URL (`/media/<hash>`), leading the browser to save the download as an extensionless UUID.
+- How it was fixed: 1) Registered `mimetypes.add_type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx")` in `frontend/pages/reports.py` so Python's standard library reliably resolves OpenXML MIME types across all platforms and minimal containers. 2) Added `media-types` to `apt-get install` in `Dockerfile.frontend`. 3) Added a unit test in `tests/unit/test_frontend.py` asserting `st.download_button` is created with `file_name="auditlens_report_run_{run_id}.xlsx"` and `mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"`.
+- Alternatives considered: Changing the MIME type argument to generic `application/octet-stream`; rejected because explicit OpenXML MIME typing complies with RFC standards and PRD export requirements.
+- Lesson learned: Never rely on host OS MIME databases (e.g. Windows Registry vs minimal Linux container) for modern formats like OpenXML (`.xlsx`); explicitly register custom MIME types in Python via `mimetypes.add_type()` and ensure container base images install system MIME packages (`media-types`).
+- Related doc updated: yes, docs/PROBLEMS_LOG.md
+
+
 ### P-022 | Streamlit AppTest.from_file relative path resolution failure
 - Date: 2026-10-25
 - Phase: Review Fixes
