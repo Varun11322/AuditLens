@@ -1,8 +1,10 @@
 """Integration tests for authentication, user management, and rate limiting."""
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.core.rate_limit import get_login_rate_limiter
 from app.core.security import hash_password
 from app.db.models.user import User
@@ -71,24 +73,24 @@ def test_login_rate_limiting(client: TestClient, auditor_user: User):
     """Test login rate limiting triggers 429 on exceeding 10 requests per minute."""
     limiter = get_login_rate_limiter()
     limiter.reset()
+    try:
+        # Perform 10 requests (all allowed under rate limit)
+        for _ in range(10):
+            client.post(
+                "/auth/login",
+                json={"email": auditor_user.email, "password": "BadPassword"},
+            )
 
-    # Perform 10 requests (all allowed under rate limit)
-    for _ in range(10):
-        client.post(
+        # 11th request must be rate limited with 429
+        res = client.post(
             "/auth/login",
-            json={"email": auditor_user.email, "password": "BadPassword"},
+            json={"email": auditor_user.email, "password": "Auditor123!"},
         )
-
-    # 11th request must be rate limited with 429
-    res = client.post(
-        "/auth/login",
-        json={"email": auditor_user.email, "password": "Auditor123!"},
-    )
-    assert res.status_code == 429
-    assert res.json()["error"]["code"] == "rate_limited"
-
-    # Reset limiter after test
-    limiter.reset()
+        assert res.status_code == 429
+        assert res.json()["error"]["code"] == "rate_limited"
+    finally:
+        # Reset limiter after test
+        limiter.reset()
 
 
 def test_auth_me_authenticated(client: TestClient, auditor_user: User, auditor_token: str):
@@ -159,3 +161,34 @@ def test_create_user_duplicate_email(client: TestClient, manager_token: str, aud
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "email_exists"
+
+
+def test_production_mode_rejects_default_jwt_secret():
+    """Verify application settings refuse to instantiate in production with default/short secret."""
+    # Default secret in production mode must raise ValueError
+    with pytest.raises(ValueError, match="Production mode requires a secure JWT_SECRET"):
+        Settings(
+            app_env="production",
+            jwt_secret="replace_with_a_secure_random_secret_at_least_32_chars",
+        )
+
+    # Short secret in production mode must raise ValueError
+    with pytest.raises(ValueError, match="Production mode requires a secure JWT_SECRET"):
+        Settings(
+            app_env="production",
+            jwt_secret="short_secret",
+        )
+
+    # Secure 32+ char secret in production succeeds
+    prod_settings = Settings(
+        app_env="production",
+        jwt_secret="a" * 32,
+    )
+    assert prod_settings.app_env == "production"
+
+    # Default secret in development succeeds
+    dev_settings = Settings(
+        app_env="development",
+        jwt_secret="replace_with_a_secure_random_secret_at_least_32_chars",
+    )
+    assert dev_settings.app_env == "development"

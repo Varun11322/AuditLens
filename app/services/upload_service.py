@@ -4,6 +4,7 @@ import io
 import logging
 import os
 import uuid
+import zipfile
 from pathlib import Path
 
 import pandas as pd
@@ -47,6 +48,52 @@ def get_template_csv() -> str:
         "Finance,ACC-5001,john.doe,mary.smith,Office supplies"
     )
     return f"{header}\n{sample_row}\n"
+
+
+def _validate_file_content(ext: str, file_bytes: bytes) -> None:
+    """Validate raw file content bytes match the claimed file format.
+
+    Enforces content inspection per docs/SECURITY.md Section 8.
+    """
+    if ext == ".xlsx":
+        if not file_bytes.startswith(b"PK") or not zipfile.is_zipfile(io.BytesIO(file_bytes)):
+            raise UnsupportedMediaTypeError(
+                code="invalid_file_content",
+                message="File content does not match Microsoft Excel (.xlsx) format.",
+            )
+    elif ext == ".csv":
+        header = file_bytes[:1024]
+        # Reject executable binaries (e.g. Windows PE, Linux ELF, Mach-O)
+        if header.startswith(
+            (
+                b"MZ",
+                b"\x7fELF",
+                b"\xca\xfe\xba\xbe",
+                b"\xce\xfa\xed\xfe",
+                b"\xcf\xfa\xed\xfe",
+            )
+        ):
+            raise UnsupportedMediaTypeError(
+                code="invalid_file_content",
+                message="File content is a binary executable, not valid CSV text.",
+            )
+        # Reject files with binary null bytes
+        if b"\x00" in header:
+            raise UnsupportedMediaTypeError(
+                code="invalid_file_content",
+                message="File contains binary null bytes and cannot be parsed as CSV.",
+            )
+        # Verify text decodability
+        try:
+            header.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                header.decode("latin-1")
+            except Exception as e:
+                raise UnsupportedMediaTypeError(
+                    code="invalid_file_content",
+                    message="File content is not readable text.",
+                ) from e
 
 
 def handle_file_upload(
@@ -93,6 +140,9 @@ def handle_file_upload(
             code="empty_file",
             message="Uploaded file is empty.",
         )
+
+    # Content-based validation per docs/SECURITY.md Section 8
+    _validate_file_content(ext, file_bytes)
 
     # Parse file into pandas DataFrame
     try:

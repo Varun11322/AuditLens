@@ -40,14 +40,12 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    # CORS configuration (allowing local Streamlit client)
-    origins = [
-        "http://localhost:8501",
-        "http://127.0.0.1:8501",
-    ]
+    # CORS configuration (allowing configured Streamlit origins and dev endpoints)
+    origins = list(settings.cors_origins)
     if settings.app_env == "development":
-        origins.append("http://localhost:8000")
-        origins.append("http://127.0.0.1:8000")
+        for dev_origin in ("http://localhost:8000", "http://127.0.0.1:8000"):
+            if dev_origin not in origins:
+                origins.append(dev_origin)
 
     app.add_middleware(
         CORSMiddleware,

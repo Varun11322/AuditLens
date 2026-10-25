@@ -88,10 +88,16 @@ Running with Docker starts PostgreSQL, runs database migrations automatically, s
 
 2. **Configure environment**:
    ```bash
+   # Linux / macOS / PowerShell
    cp .env.example .env
+
+   # Windows (Command Prompt - cmd.exe)
+   copy .env.example .env
    ```
    > [!IMPORTANT]
-   > The default admin password in `.env.example` is a placeholder (`change_this_admin_password`). Always update `SEED_ADMIN_PASSWORD` and `JWT_SECRET` in your `.env` file before deploying to shared or production environments.
+   > The default admin password in `.env.example` is a placeholder (`change_this_admin_password`). In production (`APP_ENV=production`), the application strictly refuses to start if `JWT_SECRET` is the default placeholder or shorter than 32 characters. Generate a secure random secret (e.g. `openssl rand -hex 32`) and update `SEED_ADMIN_PASSWORD` and `JWT_SECRET` in your `.env` file before deploying.
+   >
+   > You can also customize allowed frontend domains via `CORS_ORIGINS` (defaults to `http://localhost:8501,http://127.0.0.1:8501`).
 
 3. **Start services**:
    ```bash
@@ -131,6 +137,12 @@ For non-Docker local runs, Streamlit binds to `localhost` by default.
    # Windows (PowerShell)
    python -m venv .venv
    .venv\Scripts\Activate.ps1
+   # Note: If script execution is restricted by PowerShell policy, run:
+   # Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+   # Windows (Command Prompt - cmd.exe)
+   python -m venv .venv
+   .venv\Scripts\activate.bat
    ```
 
 3. **Install dependencies**:
@@ -140,7 +152,11 @@ For non-Docker local runs, Streamlit binds to `localhost` by default.
 
 4. **Configure environment**:
    ```bash
+   # Linux / macOS / PowerShell
    cp .env.example .env
+
+   # Windows (Command Prompt - cmd.exe)
+   copy .env.example .env
    ```
    Edit `.env` to point `DATABASE_URL` to your active PostgreSQL server. If you use Docker only for the database, run:
    ```bash
@@ -187,15 +203,20 @@ This generates three files in `data/`:
 ---
 
 ## 5. Automated Testing & Verification
-
+ 
 Run the test suite:
 ```bash
 pytest
 ```
 
-Run test suite with code coverage:
+Run test suite with backend code coverage:
 ```bash
-pytest --cov=app --cov=frontend --cov-report=term-missing
+pytest --cov=app --cov-report=term-missing
+```
+
+Run type checking on the analytics engine:
+```bash
+mypy app/analytics
 ```
 
 Run code quality and formatting checks:

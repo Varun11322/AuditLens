@@ -239,3 +239,47 @@ def test_delete_upload_cascades(
         {"e": str(upload_id)},
     ).scalar()
     assert log_count >= 1
+
+
+def test_upload_disguised_executable_as_csv(client: TestClient, auditor_token: str):
+    """Test uploading an executable disguised as .csv is rejected with 415 invalid_file_content."""
+    fake_exe = b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00"
+    response = client.post(
+        "/uploads",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+        files={"file": ("malware.csv", io.BytesIO(fake_exe), "text/csv")},
+    )
+    assert response.status_code == 415
+    data = response.json()
+    assert data["error"]["code"] == "invalid_file_content"
+
+
+def test_upload_corrupted_xlsx_header(client: TestClient, auditor_token: str):
+    """Test uploading non-ZIP data disguised as .xlsx is rejected with 415 invalid_file_content."""
+    not_a_zip = b"This is plain text with an .xlsx extension"
+    response = client.post(
+        "/uploads",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+        files={
+            "file": (
+                "fake.xlsx",
+                io.BytesIO(not_a_zip),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+    assert response.status_code == 415
+    data = response.json()
+    assert data["error"]["code"] == "invalid_file_content"
+
+
+def test_upload_csv_with_null_bytes(client: TestClient, auditor_token: str):
+    """Test uploading a file with null bytes disguised as .csv is rejected with 415."""
+    null_byte_data = b"transaction_id,posting_date,amount\x00,vendor_id\nTXN-1,2026-01-01,100,V-1"
+    response = client.post(
+        "/uploads",
+        headers={"Authorization": f"Bearer {auditor_token}"},
+        files={"file": ("corrupt.csv", io.BytesIO(null_byte_data), "text/csv")},
+    )
+    assert response.status_code == 415
+    assert response.json()["error"]["code"] == "invalid_file_content"

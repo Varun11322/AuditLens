@@ -23,6 +23,39 @@
 
 ## Log
 
+### P-022 | Streamlit AppTest.from_file relative path resolution failure
+- Date: 2026-10-25
+- Phase: Review Fixes
+- Status: Resolved
+- What happened: Running `AppTest.from_file("frontend/app.py")` in `tests/unit/test_frontend.py` failed with `FileNotFoundError: AppTest script not found at ...\tests\unit\frontend\app.py`.
+- Root cause: Streamlit's `AppTest.from_file()` resolves relative file paths relative to the file containing the test execution caller (`tests/unit/test_frontend.py`), not relative to current working directory (`Path.cwd()`).
+- How it was fixed: Specified absolute paths using `Path(__file__).resolve().parent.parent.parent / "frontend" / "app.py"`. Verified all 7 page smoke tests (Login, Upload, Dashboard, Review, Benford, Reports, Evaluation) pass without exceptions.
+- Alternatives considered: Changing cwd before running tests; rejected as flaky across test runners.
+- Lesson learned: Always use absolute paths derived from `Path(__file__)` when providing file paths to third-party test runners like Streamlit AppTest.
+- Related doc updated: yes, docs/PROGRESS.md
+
+### P-021 | Upload endpoint lacked file content / magic bytes validation
+- Date: 2026-10-25
+- Phase: Review Fixes
+- Status: Resolved
+- What happened: Code review against `docs/SECURITY.md` revealed that file upload validation only inspected the file extension and MIME type, but did not inspect actual file bytes before saving or parsing. Disguised executable files (e.g. `MZ` Windows EXE, `ELF` binaries) or corrupted binary files named `.csv` or `.xlsx` would pass upload checks.
+- Root cause: `app/services/upload_service.py` checked filename extension against allowed list, but omitted binary signature / magic-byte verification.
+- How it was fixed: Added `_validate_file_content()` in `app/services/upload_service.py`. For `.xlsx`, it verifies OpenXML ZIP magic bytes (`PK\x03\x04`) and confirms archive validity with `zipfile.is_zipfile()`. For `.csv`, it checks that the file is UTF-8 decodable, rejects dangerous executable magic bytes (`MZ`, `\x7fELF`, Mach-O), and rejects binary files containing embedded null bytes (`\x00`). Added integration tests in `tests/integration/test_uploads.py`.
+- Alternatives considered: External `python-magic` library; rejected to avoid C library dependencies on Windows.
+- Lesson learned: Always validate file content via header signatures and character decoding in addition to extensions.
+- Related doc updated: yes, docs/PROGRESS.md
+
+### P-020 | Vulnerable dependencies flagged by pip-audit and Streamlit pillow conflict
+- Date: 2026-10-25
+- Phase: Review Fixes
+- Status: Resolved
+- What happened: Running `pip-audit` detected 50 known CVEs across `pillow` (12.3.0), `certifi` (2026.7.22), and `pip` (25.2). Upgrading `pillow>=13.0.0` caused pip to report: `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts. streamlit 1.66.0 requires pillow<13,>=9.2.0, but you have pillow 13.0.0 which is incompatible.`
+- Root cause: Streamlit 1.66.0 pinned an upper bound `<13` on Pillow before Pillow 13.0.0 released with security patches.
+- How it was fixed: Upgraded `pillow` to `13.0.0` and `certifi` to `2026.10.23` in `pyproject.toml` as recommended by `pip-audit`. Ran comprehensive runtime testing of Streamlit, all 7 pages, Plotly charts, and test suites, confirming full runtime compatibility. Re-ran `pip-audit`, confirming 0 known vulnerabilities.
+- Alternatives considered: Downgrading Pillow to 12.x; rejected as it leaves high-severity CVEs unpatched.
+- Lesson learned: Pin dependencies thoughtfully; audit dependencies periodically and verify upper-bound relaxations when security patches are released.
+- Related doc updated: yes, docs/PROGRESS.md
+
 ### P-019 | AttributeError 'transaction_id' on FlaggedTransaction model in evaluate_analysis_run
 - Date: 2026-10-18
 - Phase: 7

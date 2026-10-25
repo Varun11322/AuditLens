@@ -347,3 +347,39 @@ def test_api_client_evaluate_run():
         assert "files" in kwargs
         assert kwargs["files"]["file"] == ("gt.csv", b"test_csv", "text/csv")
         assert kwargs["headers"]["Authorization"] == "Bearer mock-token"
+
+
+def test_streamlit_unauthenticated_login_smoke():
+    """Smoke test unauthenticated session renders login page without exceptions."""
+    from pathlib import Path
+
+    from streamlit.testing.v1 import AppTest
+
+    app_path = str(Path(__file__).resolve().parent.parent.parent / "frontend" / "app.py")
+    at = AppTest.from_file(app_path)
+    at.run()
+    assert not at.exception
+
+
+@pytest.mark.parametrize(
+    "page_name",
+    ["Upload", "Dashboard", "Review", "Benford", "Reports", "Evaluation"],
+)
+def test_streamlit_authenticated_pages_smoke(page_name: str):
+    """Smoke test each authenticated page renders without exceptions."""
+    from pathlib import Path
+
+    from streamlit.testing.v1 import AppTest
+
+    app_path = str(Path(__file__).resolve().parent.parent.parent / "frontend" / "app.py")
+    at = AppTest.from_file(app_path)
+    at.session_state["token"] = "mock-bearer-token"
+    at.session_state["user"] = {
+        "id": 1,
+        "email": "manager@example.com",
+        "role": "manager",
+        "full_name": "Test Manager",
+    }
+    at.session_state["nav_destination"] = page_name
+    at.run()
+    assert not at.exception, f"Page {page_name} raised exception: {at.exception}"

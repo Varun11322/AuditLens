@@ -3,9 +3,9 @@
 > Maintained by the AI agent. Update at the end of EVERY phase and whenever a feature status changes.
 > Be honest: only mark something Done if it was actually run and verified.
 
-**Last updated:** 2026-10-18  
-**Current phase:** Phase 7 completed (All 8 phases complete!)  
-**Overall completion:** 8 of 8 phases  
+**Last updated:** 2026-10-25  
+**Current phase:** Review Fixes completed (Repository Audit & Hardening)  
+**Overall completion:** 8 of 8 phases + Review Fixes  
 
 ## 1. Phase Status
 Status values: Not started / In progress / Done / Blocked
@@ -20,6 +20,7 @@ Status values: Not started / In progress / Done / Blocked
 | 5 | Streamlit UI | Done | 2026-10-18 | 72/72 | Pass | Full multi-page UI in `frontend/` per UX_FLOWS.md & DESIGN_SYSTEM.md: `api_client.py`, theme config, Login, Upload & Run, Dashboard, Review workbench with server-side pagination & manager sign-off, Benford page, placeholders; fixed review page null sign-off crash and dashboard totals (initial Phase 5 verification missed them because UI was not run in browser) |
 | 6 | Excel report export | Done | 2026-10-18 | 79/79 | Pass | Multi-sheet Excel (.xlsx) workpaper export endpoint `GET /runs/{id}/report?format=xlsx` using openpyxl with sheets: Summary, Flagged Transactions, Rule Counts, Benford, Review Log; formula injection protection (`= + - @` escaped with `'`); sensible column widths, frozen headers, currency/date number formatting; Streamlit Reports page download button; verified on 50k ledger run (155KB, 1,387 rows) and isolated Streamlit AppTest without PYTHONPATH |
 | 7 | Evaluation page, Docker, README | Done | 2026-10-18 | 84/84 | Pass | Evaluation endpoint `POST /runs/{id}/evaluate` and Streamlit Evaluation workbench; multi-service Docker Compose (`docker-compose.yml`, `Dockerfile.api`, `Dockerfile.frontend`) verified live via browser subagent logging into Streamlit; comprehensive README.md; Excel Summary sheet formatting & settings labels updated; Benford/Dashboard small UI polish; 84 passing tests; 91% app coverage |
+| Fixes | Post-Review Hardening & Dependency Upgrade | Done | 2026-10-25 | 95/95 | Pass | Patched 50 CVEs via `pip-audit` (`pillow>=13.0.0`, `certifi>=2026.10.19`); enforced production JWT secret validator; configurable CORS origins; added magic-byte file upload validation (.xlsx ZIP check, .csv UTF-8 + binary/null byte rejection + executable header block); reset in-memory limiter in auth tests; added Streamlit AppTests across all 7 pages; 95 passing tests; 0 linter errors; mypy analytics clean |
 
 
 ## 2. Feature Checklist (from PRD.md)
